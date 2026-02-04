@@ -1,16 +1,23 @@
 /**
  * Edge60 Backend - Match Service
- * 
+ *
  * Core match lifecycle logic and state machine
  * WAITING → ACTIVE → COMPLETED → SETTLED
- * 
+ *
  * Enhanced with real ETH/USD price fetching
  */
 
 import { v4 as uuidv4 } from "uuid";
-import { Match, MatchStatus, Prediction } from "../types/index.js";
+import {
+  Match,
+  MatchStatus,
+  Prediction,
+  SettlementInfo,
+} from "../types/index.js";
 import { MatchStore, PlayerStore } from "../stores/index.js";
 import { PriceService } from "./PriceService.js";
+import { TreasuryService } from "./TreasuryService.js";
+import { Address } from "viem";
 
 // ============================================
 // CONFIGURATION
@@ -51,13 +58,17 @@ export class MatchService {
 
     MatchStore.create(match);
     PlayerStore.setMatch(playerA, match.id);
-    
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+
+    console.log(
+      `\n╔══════════════════════════════════════════════════════════════╗`
+    );
     console.log(`║ [MATCH CREATED] ID: ${match.id.slice(0, 8)}...`);
     console.log(`║ Player A: ${playerA}`);
     console.log(`║ Stake: $${match.stake} USDC | Duration: ${match.duration}s`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
-    
+    console.log(
+      `╚══════════════════════════════════════════════════════════════╝\n`
+    );
+
     return match;
   }
 
@@ -69,13 +80,19 @@ export class MatchService {
   async joinMatch(matchId: string, playerB: string): Promise<Match | null> {
     const match = MatchStore.get(matchId);
     if (!match || match.status !== MatchStatus.WAITING) {
-      console.log(`[MatchService] ✗ Cannot join match ${matchId} - invalid state`);
+      console.log(
+        `[MatchService] ✗ Cannot join match ${matchId} - invalid state`
+      );
       return null;
     }
 
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+    console.log(
+      `\n╔══════════════════════════════════════════════════════════════╗`
+    );
     console.log(`║ [MATCH STARTING] ID: ${matchId.slice(0, 8)}...`);
-    console.log(`╠══════════════════════════════════════════════════════════════╣`);
+    console.log(
+      `╠══════════════════════════════════════════════════════════════╣`
+    );
 
     // ============================================
     // FETCH T₀ PRICE (Real ETH/USD from CoinGecko)
@@ -85,22 +102,34 @@ export class MatchService {
     const startPrice = priceData.price;
     const startTime = Date.now();
 
-    console.log(`║ ✓ T₀ Price: $${startPrice.toFixed(2)} (source: ${priceData.source})`);
+    console.log(
+      `║ ✓ T₀ Price: $${startPrice.toFixed(2)} (source: ${priceData.source})`
+    );
     console.log(`║ ✓ Start Time: ${new Date(startTime).toISOString()}`);
     console.log(`║ ✓ Player A: ${match.playerA}`);
     console.log(`║ ✓ Player B: ${playerB}`);
     console.log(`║ ✓ Timer: ${match.duration} seconds`);
-    
+
     // Yellow Network - Off-chain Locking
     const sessionA = PlayerStore.get(match.playerA)?.yellowSessionId;
     const sessionB = PlayerStore.get(playerB)?.yellowSessionId;
-    
+
     console.log(`║`);
     console.log(`║ 🏦 [OFF-CHAIN ESCROW] Locking stakes...`);
-    console.log(`║    Player A ${sessionA ? `(Session: ${sessionA.slice(0, 10)}...)` : "(No Session)"}: $${match.stake} USDC`);
-    console.log(`║    Player B ${sessionB ? `(Session: ${sessionB.slice(0, 10)}...)` : "(No Session)"}: $${match.stake} USDC`);
+    console.log(
+      `║    Player A ${
+        sessionA ? `(Session: ${sessionA.slice(0, 10)}...)` : "(No Session)"
+      }: $${match.stake} USDC`
+    );
+    console.log(
+      `║    Player B ${
+        sessionB ? `(Session: ${sessionB.slice(0, 10)}...)` : "(No Session)"
+      }: $${match.stake} USDC`
+    );
     console.log(`║    Total Escrow: $${match.stake * 2} USDC [OFF-CHAIN]`);
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
+    console.log(
+      `╚══════════════════════════════════════════════════════════════╝\n`
+    );
 
     const updated = MatchStore.update(matchId, {
       playerB,
@@ -127,7 +156,9 @@ export class MatchService {
   ): boolean {
     const match = MatchStore.get(matchId);
     if (!match || match.status !== MatchStatus.ACTIVE) {
-      console.log(`[MatchService] ✗ Cannot submit prediction - match not active`);
+      console.log(
+        `[MatchService] ✗ Cannot submit prediction - match not active`
+      );
       return false;
     }
 
@@ -146,9 +177,14 @@ export class MatchService {
     }
 
     MatchStore.update(matchId, updates);
-    
-    console.log(`║ [PREDICTION] Player ${playerLabel} (${playerId.slice(0, 12)}...) → ${prediction}`);
-    
+
+    console.log(
+      `║ [PREDICTION] Player ${playerLabel} (${playerId.slice(
+        0,
+        12
+      )}...) → ${prediction}`
+    );
+
     return true;
   }
 
@@ -159,8 +195,14 @@ export class MatchService {
     const match = MatchStore.get(matchId);
     if (!match) return;
 
-    console.log(`\n⏱️  [TIMER STARTED] Match ${matchId.slice(0, 8)}... (${match.duration}s)`);
-    console.log(`   Players have ${match.duration} seconds to submit predictions...\n`);
+    console.log(
+      `\n⏱️  [TIMER STARTED] Match ${matchId.slice(0, 8)}... (${
+        match.duration
+      }s)`
+    );
+    console.log(
+      `   Players have ${match.duration} seconds to submit predictions...\n`
+    );
 
     const timer = setTimeout(async () => {
       await this.completeMatch(matchId);
@@ -183,9 +225,13 @@ export class MatchService {
     // Clear timer
     this.clearTimer(matchId);
 
-    console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+    console.log(
+      `\n╔══════════════════════════════════════════════════════════════╗`
+    );
     console.log(`║ [MATCH ENDING] ID: ${matchId.slice(0, 8)}...`);
-    console.log(`╠══════════════════════════════════════════════════════════════╣`);
+    console.log(
+      `╠══════════════════════════════════════════════════════════════╣`
+    );
 
     // ============================================
     // FETCH T₁ PRICE (Fresh price for comparison)
@@ -197,19 +243,22 @@ export class MatchService {
 
     console.log(`║ ✓ T₀ Price: $${match.startPrice?.toFixed(2)}`);
     console.log(`║ ✓ T₁ Price: $${endPrice.toFixed(2)}`);
-    
+
     // ============================================
     // DETERMINE PRICE MOVEMENT
     // ============================================
     const priceDiff = endPrice - (match.startPrice || 0);
-    const priceChangePercent = ((priceDiff / (match.startPrice || 1)) * 100).toFixed(4);
+    const priceChangePercent = (
+      (priceDiff / (match.startPrice || 1)) *
+      100
+    ).toFixed(4);
     const priceWentUp = priceDiff > 0;
     const priceWentDown = priceDiff < 0;
     const priceUnchanged = priceDiff === 0;
-    
+
     let actualMovement: string;
     let correctPrediction: Prediction | null;
-    
+
     if (priceUnchanged) {
       actualMovement = "UNCHANGED";
       correctPrediction = null; // Draw if price unchanged
@@ -223,10 +272,14 @@ export class MatchService {
 
     console.log(`║`);
     console.log(`║ ═══════════ PRICE ANALYSIS ═══════════`);
-    console.log(`║ Change: ${priceDiff >= 0 ? '+' : ''}$${priceDiff.toFixed(2)} (${priceChangePercent}%)`);
+    console.log(
+      `║ Change: ${priceDiff >= 0 ? "+" : ""}$${priceDiff.toFixed(
+        2
+      )} (${priceChangePercent}%)`
+    );
     console.log(`║ Movement: ${actualMovement}`);
     console.log(`║`);
-    
+
     // ============================================
     // LOG PREDICTIONS
     // ============================================
@@ -257,15 +310,24 @@ export class MatchService {
       // Only A predicted - A wins by default
       result = "Player A wins (Player B didn't predict)";
       winner = match.playerA;
-    } else if (match.predictionA === correctPrediction && match.predictionB !== correctPrediction) {
+    } else if (
+      match.predictionA === correctPrediction &&
+      match.predictionB !== correctPrediction
+    ) {
       // A correct, B wrong
       result = `Player A wins (Predicted ${match.predictionA} correctly)`;
       winner = match.playerA;
-    } else if (match.predictionB === correctPrediction && match.predictionA !== correctPrediction) {
+    } else if (
+      match.predictionB === correctPrediction &&
+      match.predictionA !== correctPrediction
+    ) {
       // B correct, A wrong
       result = `Player B wins (Predicted ${match.predictionB} correctly)`;
       winner = match.playerB;
-    } else if (match.predictionA === correctPrediction && match.predictionB === correctPrediction) {
+    } else if (
+      match.predictionA === correctPrediction &&
+      match.predictionB === correctPrediction
+    ) {
       // Both correct - DRAW
       result = "DRAW (Both predicted correctly)";
       winner = null;
@@ -283,7 +345,9 @@ export class MatchService {
     } else {
       console.log(`║ Stakes returned to both players`);
     }
-    console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
+    console.log(
+      `╚══════════════════════════════════════════════════════════════╝\n`
+    );
 
     // ============================================
     // UPDATE MATCH STATE
@@ -303,17 +367,109 @@ export class MatchService {
   }
 
   /**
-   * Settle the match (finalize payouts - mock for now)
-   * Transitions: COMPLETED → SETTLED
+   * Settle the match on-chain via Arc Treasury
+   * Transitions: COMPLETED → SETTLING → SETTLED
+   *
+   * Flow:
+   * 1. Compute final balances (winner gets prize pool)
+   * 2. Send settlement tx to Arc Treasury
+   * 3. Treasury applies rake (2.5%)
+   * 4. Winner receives net payout
    */
-  settleMatch(matchId: string): Match | null {
+  async settleMatch(matchId: string): Promise<Match | null> {
     const match = MatchStore.get(matchId);
     if (!match || match.status !== MatchStatus.COMPLETED) {
       return null;
     }
 
+    // ============================================
+    // STEP 1: Transition to SETTLING
+    // ============================================
+    MatchStore.update(matchId, { status: MatchStatus.SETTLING });
+
+    // Notify players that settlement is starting
+    const players = [match.playerA, match.playerB].filter(Boolean) as string[];
+    PlayerStore.broadcast(players, {
+      type: "SETTLEMENT_STARTED",
+      matchId,
+    });
+
+    console.log(
+      `\n╔═══════════════════ ON-CHAIN SETTLEMENT ═══════════════════╗`
+    );
+    console.log(`║ Match: ${matchId.slice(0, 8)}...`);
+    console.log(`║ Status: COMPLETING → SETTLING`);
+    console.log(
+      `╠══════════════════════════════════════════════════════════════╣`
+    );
+
+    let settlement: SettlementInfo;
+
+    // ============================================
+    // STEP 2: Compute Final Balances & Settle
+    // ============================================
+    if (match.winner) {
+      // Winner exists - settle on-chain
+      const winnerSession = PlayerStore.get(match.winner)?.yellowSessionId;
+      const winnerAddress = (winnerSession || match.winner) as Address;
+      const prizePool = match.stake * 2; // Total pot
+
+      console.log(`║ Winner: ${match.winner}`);
+      console.log(`║ Session: ${winnerSession || "N/A"}`);
+      console.log(`║ Prize Pool: $${prizePool} USDC`);
+      console.log(`║`);
+      console.log(`║ 🔗 Calling Arc Treasury...`);
+
+      // Call Arc Treasury contract
+      const result = await TreasuryService.settleMatch(
+        winnerAddress,
+        prizePool,
+        matchId
+      );
+
+      settlement = {
+        status: result.status,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber
+          ? Number(result.blockNumber)
+          : undefined,
+        grossAmount: result.grossAmount,
+        rake: result.rake,
+        netPayout: result.netPayout,
+        error: result.error,
+        explorerUrl: result.explorerUrl,
+      };
+
+      if (result.status === "confirmed") {
+        console.log(`║ ✓ Settlement confirmed on Arc!`);
+        console.log(`║   Gross: $${result.grossAmount} USDC`);
+        console.log(`║   Rake:  $${result.rake} USDC (2.5%)`);
+        console.log(`║   Net:   $${result.netPayout} USDC → Winner`);
+        if (result.txHash) {
+          console.log(`║   Tx: ${result.txHash.slice(0, 18)}...`);
+        }
+      } else {
+        console.log(`║ ❌ Settlement failed: ${result.error}`);
+      }
+    } else {
+      // Draw - return stakes (no on-chain tx needed for MVP)
+      console.log(`║ 🤝 DRAW - No winner`);
+      console.log(`║ Stakes returned off-chain to both players`);
+
+      settlement = {
+        status: "confirmed",
+        grossAmount: "0",
+        rake: "0",
+        netPayout: "0",
+      };
+    }
+
+    // ============================================
+    // STEP 3: Finalize Match State
+    // ============================================
     const updated = MatchStore.update(matchId, {
       status: MatchStatus.SETTLED,
+      settlement,
     });
 
     if (updated) {
@@ -322,18 +478,28 @@ export class MatchService {
       if (match.playerB) {
         PlayerStore.setMatch(match.playerB, null);
       }
-      
-      console.log(`\n╔═══════════════════ YELLOW SETTLEMENT ═══════════════════╗`);
-      if (match.winner) {
-        const winnerSession = PlayerStore.get(match.winner)?.yellowSessionId;
-        console.log(`║ 💸 [TRANSFER] $${match.stake * 2} USDC → ${match.winner}`);
-        console.log(`║ 📄 [RECEIPT] Session ${winnerSession ? winnerSession.slice(0, 10) + "..." : "N/A"} balance updated.`);
+
+      // Notify players of settlement completion
+      if (settlement.status === "confirmed") {
+        PlayerStore.broadcast(players, {
+          type: "SETTLEMENT_COMPLETE",
+          match: updated,
+          settlement,
+        });
       } else {
-        console.log(`║ 🔄 [RETURN] Stakes returned off-chain to both players.`);
+        PlayerStore.broadcast(players, {
+          type: "SETTLEMENT_FAILED",
+          matchId,
+          error: settlement.error || "Unknown error",
+        });
       }
-      console.log(`║ ✓ [SETTLED] Match ${matchId.slice(0, 8)}... finalized`);
-      console.log(`╚══════════════════════════════════════════════════════════╝\n`);
     }
+
+    console.log(`║`);
+    console.log(`║ ✓ Match ${matchId.slice(0, 8)}... → SETTLED`);
+    console.log(
+      `╚══════════════════════════════════════════════════════════════╝\n`
+    );
 
     return updated || null;
   }
@@ -357,7 +523,7 @@ export class MatchService {
 
     // Clear player associations
     players.forEach((p) => PlayerStore.setMatch(p, null));
-    
+
     console.log(`✗ [CANCELLED] Match ${matchId.slice(0, 8)}... - ${reason}\n`);
   }
 
@@ -371,9 +537,9 @@ export class MatchService {
       match,
     });
 
-    // Auto-settle after a short delay
-    setTimeout(() => {
-      this.settleMatch(match.id);
+    // Auto-settle after a short delay (async)
+    setTimeout(async () => {
+      await this.settleMatch(match.id);
     }, 3000);
   }
 

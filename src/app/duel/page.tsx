@@ -109,11 +109,10 @@ export default function Duel() {
               </div>
               {myActualPrediction && (
                 <p
-                  className={`text-headline mt-4 ${
-                    myActualPrediction === "UP"
+                  className={`text-headline mt-4 ${myActualPrediction === "UP"
                       ? "text-green-500"
                       : "text-rose-500"
-                  }`}
+                    }`}
                 >
                   {myActualPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
                 </p>
@@ -202,7 +201,8 @@ export default function Duel() {
           </div>
 
           {/* Prediction Buttons */}
-          {!myActualPrediction ? (
+          {/* Use myPrediction (local state) OR myActualPrediction (server state) to determine if locked */}
+          {!(myPrediction || myActualPrediction) ? (
             <div className="space-y-6">
               <p className="text-center text-title text-zinc-400">
                 Will the price go UP or DOWN?

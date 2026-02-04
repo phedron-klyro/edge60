@@ -1,14 +1,15 @@
 /**
  * Edge60 Backend - Entry Point
- * 
+ *
  * Real-time USDC prediction duels server
- * 
+ *
  * HTTP: http://localhost:3001
  * WebSocket: ws://localhost:3001/ws
  */
 
+import "dotenv/config";
 import { setupServer } from "./server.js";
-import { matchService } from "./services/index.js";
+import { matchService, TreasuryService } from "./services/index.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3002;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -38,12 +39,18 @@ async function main() {
     // Start server
     await server.listen({ port: PORT, host: HOST });
 
+    const treasuryStatus = TreasuryService.isReady()
+      ? `✓ Connected (${TreasuryService.getContractAddress().slice(0, 10)}...)`
+      : `⚠ Mock Mode (no key)`;
+
     console.log(`
   ┌─────────────────────────────────────────┐
   │ Server running!                         │
   │                                         │
   │ HTTP:      http://localhost:${PORT}        │
   │ WebSocket: ws://localhost:${PORT}/ws       │
+  │                                         │
+  │ Arc Treasury: ${treasuryStatus.padEnd(24)}│
   │                                         │
   │ Endpoints:                              │
   │   GET /health  - Health check           │

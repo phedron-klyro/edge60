@@ -1,0 +1,23 @@
+{
+  "name": "edge60-contracts",
+  "version": "1.0.0",
+  "description": "Edge60 Treasury smart contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:base-sepolia": "hardhat run scripts/deploy.js --network baseSepolia",
+    "deploy:arc-testnet": "hardhat run scripts/deploy.js --network arcTestnet",
+    "verify:base-sepolia": "hardhat verify --network baseSepolia",
+    "interact:base-sepolia": "hardhat run scripts/interact.js --network baseSepolia",
+    "interact:arc-testnet": "hardhat run scripts/interact.js --network arcTestnet",
+    "fund": "hardhat run scripts/fund-treasury.js --network baseSepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.0"
+  }
+}

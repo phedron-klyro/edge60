@@ -1,6 +1,6 @@
 /**
  * Edge60 Backend - Type Definitions
- * 
+ *
  * Core data models for matchmaking and game state
  */
 
@@ -10,7 +10,7 @@
 
 /**
  * Match lifecycle states
- * WAITING → ACTIVE → COMPLETED → SETTLED
+ * WAITING → ACTIVE → COMPLETED → SETTLING → SETTLED
  */
 export enum MatchStatus {
   /** Player A joined, waiting for Player B */
@@ -19,8 +19,38 @@ export enum MatchStatus {
   ACTIVE = "ACTIVE",
   /** Timer ended, winner calculated */
   COMPLETED = "COMPLETED",
-  /** Results finalized (payment processed) */
+  /** On-chain settlement in progress */
+  SETTLING = "SETTLING",
+  /** Results finalized (payment processed on-chain) */
   SETTLED = "SETTLED",
+}
+
+// ============================================
+// SETTLEMENT STATUS
+// ============================================
+
+/**
+ * On-chain settlement status
+ */
+export type SettlementStatus =
+  | "pending" // Waiting to start
+  | "submitting" // Tx being submitted
+  | "confirming" // Waiting for confirmation
+  | "confirmed" // Successfully settled on-chain
+  | "failed"; // Settlement failed
+
+/**
+ * Settlement details from Arc Treasury
+ */
+export interface SettlementInfo {
+  status: SettlementStatus;
+  txHash?: string;
+  blockNumber?: number;
+  grossAmount?: string;
+  rake?: string;
+  netPayout?: string;
+  error?: string;
+  explorerUrl?: string;
 }
 
 // ============================================
@@ -62,6 +92,8 @@ export interface Match {
   startPrice: number | null;
   /** Ending price when match completed */
   endPrice: number | null;
+  /** On-chain settlement info (populated after settlement) */
+  settlement?: SettlementInfo;
 }
 
 // ============================================
@@ -89,7 +121,12 @@ export interface Player {
  * Events sent from Client → Server
  */
 export type ClientEvent =
-  | { type: "JOIN_QUEUE"; playerId: string; stake: number; yellowSessionId?: string }
+  | {
+      type: "JOIN_QUEUE";
+      playerId: string;
+      stake: number;
+      yellowSessionId?: string;
+    }
   | { type: "SUBMIT_PREDICTION"; matchId: string; prediction: Prediction }
   | { type: "LEAVE_QUEUE"; playerId: string }
   | { type: "PING" };
@@ -100,9 +137,17 @@ export type ClientEvent =
 export type ServerEvent =
   | { type: "QUEUE_JOINED"; position: number }
   | { type: "MATCH_FOUND"; match: Match }
-  | { type: "START_MATCH"; matchId: string; startTime: number; startPrice: number }
+  | {
+      type: "START_MATCH";
+      matchId: string;
+      startTime: number;
+      startPrice: number;
+    }
   | { type: "PREDICTION_RECEIVED"; matchId: string }
   | { type: "MATCH_RESULT"; match: Match }
+  | { type: "SETTLEMENT_STARTED"; matchId: string }
+  | { type: "SETTLEMENT_COMPLETE"; match: Match; settlement: SettlementInfo }
+  | { type: "SETTLEMENT_FAILED"; matchId: string; error: string }
   | { type: "ERROR"; message: string }
   | { type: "PONG" };
 

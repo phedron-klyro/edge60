@@ -7,7 +7,16 @@ import { useGame } from "@/context/GameContext";
 
 export default function Result() {
   const router = useRouter();
-  const { currentMatch, isWinner, playAgain, phase } = useGame();
+  const {
+    currentMatch,
+    isWinner,
+    playAgain,
+    phase,
+    isSettling,
+    isSettled,
+    settlement,
+    settlementStatus,
+  } = useGame();
 
   // If no match data, redirect to dashboard
   if (!currentMatch && phase !== "result") {
@@ -52,13 +61,12 @@ export default function Result() {
         <div className="max-w-2xl w-full text-center space-y-8">
           {/* Result Card */}
           <div
-            className={`brutal-card p-12 ${
-              isWin
+            className={`brutal-card p-12 ${isWin
                 ? "border-green-500 shadow-[6px_6px_0_0_#22c55e]"
                 : isDraw
                   ? "border-zinc-500 shadow-[6px_6px_0_0_#71717a]"
                   : "border-rose-500 shadow-[6px_6px_0_0_#f43f5e]"
-            }`}
+              }`}
           >
             {/* Emoji */}
             <div className="text-8xl mb-6">
@@ -67,13 +75,12 @@ export default function Result() {
 
             {/* Result Text */}
             <h2
-              className={`text-display ${
-                isWin
+              className={`text-display ${isWin
                   ? "text-green-500"
                   : isDraw
                     ? "text-zinc-400"
                     : "text-rose-500"
-              }`}
+                }`}
             >
               {isWin ? "YOU WIN!" : isDraw ? "IT'S A DRAW" : "YOU LOSE"}
             </h2>
@@ -84,13 +91,12 @@ export default function Result() {
                 {isWin ? "You Won" : isDraw ? "Stake Returned" : "You Lost"}
               </p>
               <p
-                className={`text-headline ${
-                  isWin
+                className={`text-headline ${isWin
                     ? "text-green-500"
                     : isDraw
                       ? "text-zinc-400"
                       : "text-rose-500"
-                }`}
+                  }`}
               >
                 {isWin
                   ? `+$${currentMatch?.stake ? currentMatch.stake * 2 : 0}`
@@ -135,6 +141,78 @@ export default function Result() {
                 </div>
               </div>
             )}
+
+            {/* Settlement Status */}
+            <div className="mt-8 pt-8 border-t-2 border-zinc-700">
+              <p className="text-sm uppercase tracking-widest text-zinc-400 mb-4">
+                Arc Treasury Settlement
+              </p>
+
+              {/* Settlement Progress */}
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {isSettling ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-indigo-400">
+                      {settlementStatus === "pending" && "Preparing settlement..."}
+                      {settlementStatus === "submitting" && "Submitting to Arc..."}
+                      {settlementStatus === "confirming" && "Waiting for confirmation..."}
+                    </span>
+                  </>
+                ) : isSettled ? (
+                  <>
+                    <span className="text-2xl">✓</span>
+                    <span className="text-green-500 font-bold">Settled on Arc</span>
+                  </>
+                ) : settlementStatus === "failed" ? (
+                  <>
+                    <span className="text-2xl">✗</span>
+                    <span className="text-rose-500">Settlement failed</span>
+                  </>
+                ) : (
+                  <span className="text-zinc-500">Awaiting settlement...</span>
+                )}
+              </div>
+
+              {/* Settlement Details */}
+              {isSettled && settlement && (
+                <div className="bg-zinc-800 rounded-lg p-4 text-left space-y-2">
+                  {isWin && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Prize Pool</span>
+                        <span className="text-white font-mono">${settlement.grossAmount} USDC</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-400">Platform Fee (2.5%)</span>
+                        <span className="text-zinc-500 font-mono">-${settlement.rake} USDC</span>
+                      </div>
+                      <div className="flex justify-between border-t border-zinc-700 pt-2">
+                        <span className="text-green-400 font-bold">Your Payout</span>
+                        <span className="text-green-400 font-mono font-bold">${settlement.netPayout} USDC</span>
+                      </div>
+                    </>
+                  )}
+
+                  {settlement.txHash && (
+                    <div className="pt-2 border-t border-zinc-700">
+                      <a
+                        href={settlement.explorerUrl || `https://testnet.explorer.arc.io/tx/${settlement.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                      >
+                        <span>View on Arc Explorer</span>
+                        <span>↗</span>
+                      </a>
+                      <p className="text-xs text-zinc-500 font-mono mt-1 truncate">
+                        {settlement.txHash}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}

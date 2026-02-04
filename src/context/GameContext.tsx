@@ -20,9 +20,21 @@ import { useYellowSession, YellowSession } from "../hooks/useYellowSession";
 // TYPES
 // ============================================
 
-export type MatchStatus = "WAITING" | "ACTIVE" | "COMPLETED" | "SETTLED";
+export type MatchStatus = "WAITING" | "ACTIVE" | "COMPLETED" | "SETTLING" | "SETTLED";
 export type Prediction = "UP" | "DOWN";
 export type GamePhase = "idle" | "queuing" | "matched" | "playing" | "result";
+export type SettlementStatus = "pending" | "submitting" | "confirming" | "confirmed" | "failed";
+
+export interface SettlementInfo {
+  status: SettlementStatus;
+  txHash?: string;
+  blockNumber?: number;
+  grossAmount?: string;
+  rake?: string;
+  netPayout?: string;
+  error?: string;
+  explorerUrl?: string;
+}
 
 export interface Match {
   id: string;
@@ -39,6 +51,7 @@ export interface Match {
   asset: string;
   startPrice: number | null;
   endPrice: number | null;
+  settlement?: SettlementInfo;
 }
 
 interface GameState {
@@ -57,6 +70,10 @@ interface GameState {
   // Result
   isWinner: boolean | null;
 
+  // Settlement
+  settlementStatus: SettlementStatus | null;
+  settlement: SettlementInfo | null;
+
   // Error
   error: string | null;
 }
@@ -69,6 +86,9 @@ type GameAction =
   | { type: "SET_PLAYING"; match: Match }
   | { type: "SET_PREDICTION"; prediction: Prediction }
   | { type: "SET_RESULT"; match: Match }
+  | { type: "SET_SETTLEMENT_STARTED" }
+  | { type: "SET_SETTLEMENT_COMPLETE"; match: Match; settlement: SettlementInfo }
+  | { type: "SET_SETTLEMENT_FAILED"; error: string }
   | { type: "SET_ERROR"; error: string }
   | { type: "RESET" };
 
@@ -84,6 +104,8 @@ const initialState: GameState = {
   currentMatch: null,
   myPrediction: null,
   isWinner: null,
+  settlementStatus: null,
+  settlement: null,
   error: null,
 };
 
@@ -134,8 +156,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         phase: "result",
         currentMatch: action.match,
         isWinner,
+        settlementStatus: "pending",
       };
     }
+
+    case "SET_SETTLEMENT_STARTED":
+      return {
+        ...state,
+        settlementStatus: "submitting",
+      };
+
+    case "SET_SETTLEMENT_COMPLETE":
+      return {
+        ...state,
+        currentMatch: action.match,
+        settlement: action.settlement,
+        settlementStatus: "confirmed",
+      };
+
+    case "SET_SETTLEMENT_FAILED":
+      return {
+        ...state,
+        settlementStatus: "failed",
+        error: action.error,
+      };
 
     case "SET_ERROR":
       return { ...state, error: action.error };
@@ -163,6 +207,9 @@ interface GameContextValue extends GameState {
   submitPrediction: (prediction: Prediction) => void;
   playAgain: () => void;
   yellow: YellowSession;
+  // Settlement helpers
+  isSettling: boolean;
+  isSettled: boolean;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -213,6 +260,25 @@ export function GameProvider({ children }: GameProviderProps) {
 
         case "MATCH_RESULT":
           dispatch({ type: "SET_RESULT", match: event.match as Match });
+          break;
+
+        case "SETTLEMENT_STARTED":
+          dispatch({ type: "SET_SETTLEMENT_STARTED" });
+          break;
+
+        case "SETTLEMENT_COMPLETE":
+          dispatch({
+            type: "SET_SETTLEMENT_COMPLETE",
+            match: event.match as Match,
+            settlement: event.settlement as SettlementInfo,
+          });
+          break;
+
+        case "SETTLEMENT_FAILED":
+          dispatch({
+            type: "SET_SETTLEMENT_FAILED",
+            error: event.error as string,
+          });
           break;
 
         case "ERROR":
@@ -288,6 +354,12 @@ export function GameProvider({ children }: GameProviderProps) {
     dispatch({ type: "RESET" });
   }, []);
 
+  // Settlement status helpers
+  const isSettling = state.settlementStatus === "pending" ||
+    state.settlementStatus === "submitting" ||
+    state.settlementStatus === "confirming";
+  const isSettled = state.settlementStatus === "confirmed";
+
   const value: GameContextValue = {
     ...state,
     isConnected,
@@ -296,6 +368,8 @@ export function GameProvider({ children }: GameProviderProps) {
     submitPrediction,
     playAgain,
     yellow,
+    isSettling,
+    isSettled,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
