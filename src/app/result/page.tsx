@@ -5,6 +5,190 @@ import { useRouter } from "next/navigation";
 import { WalletConnectButton, ENSNameDisplay } from "@/components";
 import { useGame } from "@/context/GameContext";
 
+// Prediction Game Results Component
+function PredictionResults({ 
+  currentMatch, 
+  playerId, 
+  isDraw 
+}: { 
+  currentMatch: any; 
+  playerId: string | null;
+  isDraw: boolean;
+}) {
+  const isPlayerA = currentMatch.playerA === playerId;
+  const myPrediction = isPlayerA ? currentMatch.predictionA : currentMatch.predictionB;
+  const opponentPrediction = isPlayerA ? currentMatch.predictionB : currentMatch.predictionA;
+  
+  // Determine the correct answer based on price movement
+  const priceWentUp = currentMatch.endPrice > currentMatch.startPrice;
+  const priceUnchanged = currentMatch.endPrice === currentMatch.startPrice;
+  const correctAnswer = priceUnchanged ? null : (priceWentUp ? "UP" : "DOWN");
+  
+  // Check if predictions were correct
+  const myPredictionCorrect = correctAnswer && myPrediction === correctAnswer;
+  const opponentPredictionCorrect = correctAnswer && opponentPrediction === correctAnswer;
+  
+  // Determine draw reason
+  const bothCorrect = myPredictionCorrect && opponentPredictionCorrect;
+  const bothWrong = !myPredictionCorrect && !opponentPredictionCorrect && myPrediction && opponentPrediction;
+  
+  return (
+    <>
+      <div className="mt-8 grid grid-cols-2 gap-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+            Your Prediction
+          </p>
+          <p
+            className={`text-headline ${
+              myPrediction === "UP" ? "text-green-500" : "text-rose-500"
+            }`}
+          >
+            {myPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
+          </p>
+          {correctAnswer && (
+            <p className={`text-xs mt-1 ${myPredictionCorrect ? "text-green-400" : "text-rose-400"}`}>
+              {myPredictionCorrect ? "✓ Correct" : "✗ Wrong"}
+            </p>
+          )}
+        </div>
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+            Opponent Prediction
+          </p>
+          <p
+            className={`text-headline ${
+              opponentPrediction === "UP" ? "text-green-500" : "text-rose-500"
+            }`}
+          >
+            {opponentPrediction
+              ? opponentPrediction === "UP"
+                ? "▲ UP"
+                : "▼ DOWN"
+              : "No Prediction"}
+          </p>
+          {correctAnswer && opponentPrediction && (
+            <p className={`text-xs mt-1 ${opponentPredictionCorrect ? "text-green-400" : "text-rose-400"}`}>
+              {opponentPredictionCorrect ? "✓ Correct" : "✗ Wrong"}
+            </p>
+          )}
+        </div>
+      </div>
+      
+      {/* Correct Answer Section */}
+      {correctAnswer && (
+        <div className="mt-4 p-3 bg-zinc-800/30 rounded-lg border border-zinc-700">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1 text-center">
+            Correct Answer
+          </p>
+          <p className={`text-title text-center ${correctAnswer === "UP" ? "text-green-500" : "text-rose-500"}`}>
+            {correctAnswer === "UP" ? "▲ UP" : "▼ DOWN"}
+          </p>
+        </div>
+      )}
+      
+      {/* Draw Explanation */}
+      {isDraw && (
+        <div className={`mt-4 p-4 rounded-lg text-center ${
+          bothCorrect 
+            ? "bg-amber-500/10 border border-amber-500/30" 
+            : bothWrong 
+              ? "bg-zinc-500/10 border border-zinc-500/30"
+              : "bg-zinc-500/10 border border-zinc-500/30"
+        }`}>
+          <p className={`text-sm font-medium ${
+            bothCorrect ? "text-amber-400" : "text-zinc-400"
+          }`}>
+            {bothCorrect 
+              ? "🤝 Both players predicted correctly!" 
+              : bothWrong 
+                ? "🤷 Both players predicted incorrectly!"
+                : priceUnchanged 
+                  ? "📊 Price unchanged - Draw!"
+                  : "🤝 It's a draw!"}
+          </p>
+          <p className="text-xs text-zinc-500 mt-1">
+            Stakes have been returned to both players
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Trade Duel Results Component
+function TradeDuelResults({ matchData, isPlayerA }: { matchData: any; isPlayerA: boolean }) {
+  const results = matchData?.results;
+  const initialBalance = results?.initialBalance || 10000;
+  
+  // Get my and opponent's profit based on which player I am
+  const myProfit = isPlayerA ? results?.playerAProfit : results?.playerBProfit;
+  const opponentProfit = isPlayerA ? results?.playerBProfit : results?.playerAProfit;
+  const myFinalBalance = isPlayerA ? results?.playerAFinalBalance : results?.playerBFinalBalance;
+  const opponentFinalBalance = isPlayerA ? results?.playerBFinalBalance : results?.playerAFinalBalance;
+  const myProfitPercent = isPlayerA ? results?.playerAProfitPercent : results?.playerBProfitPercent;
+  const opponentProfitPercent = isPlayerA ? results?.playerBProfitPercent : results?.playerAProfitPercent;
+  
+  // Fallback to matchData state if results not available
+  const myState = isPlayerA ? matchData?.playerAState : matchData?.playerBState;
+  const opponentState = isPlayerA ? matchData?.playerBState : matchData?.playerAState;
+  
+  const displayMyProfit = myProfit ?? (myState?.virtualBalance ? myState.virtualBalance - initialBalance : 0);
+  const displayOpponentProfit = opponentProfit ?? (opponentState?.virtualBalance ? opponentState.virtualBalance - initialBalance : 0);
+  const displayMyBalance = myFinalBalance ?? myState?.virtualBalance ?? initialBalance;
+  const displayOpponentBalance = opponentFinalBalance ?? opponentState?.virtualBalance ?? initialBalance;
+  
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+  };
+  
+  const formatProfit = (value: number) => {
+    const formatted = formatCurrency(Math.abs(value));
+    return value >= 0 ? `+${formatted}` : `-${formatted}`;
+  };
+  
+  return (
+    <div className="mt-8 grid grid-cols-2 gap-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+          Your Trading Result
+        </p>
+        <p className={`text-headline ${displayMyProfit >= 0 ? "text-green-500" : "text-rose-500"}`}>
+          {formatProfit(displayMyProfit)}
+        </p>
+        <p className="text-sm text-zinc-400 mt-1">
+          Final: {formatCurrency(displayMyBalance)}
+        </p>
+        {myProfitPercent !== undefined && (
+          <p className={`text-xs ${displayMyProfit >= 0 ? "text-green-400" : "text-rose-400"}`}>
+            ({displayMyProfit >= 0 ? "+" : ""}{myProfitPercent.toFixed(2)}%)
+          </p>
+        )}
+      </div>
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+          Opponent Trading Result
+        </p>
+        <p className={`text-headline ${displayOpponentProfit >= 0 ? "text-green-500" : "text-rose-500"}`}>
+          {formatProfit(displayOpponentProfit)}
+        </p>
+        <p className="text-sm text-zinc-400 mt-1">
+          Final: {formatCurrency(displayOpponentBalance)}
+        </p>
+        {opponentProfitPercent !== undefined && (
+          <p className={`text-xs ${displayOpponentProfit >= 0 ? "text-green-400" : "text-rose-400"}`}>
+            ({displayOpponentProfit >= 0 ? "+" : ""}{opponentProfitPercent.toFixed(2)}%)
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Result() {
   const router = useRouter();
   const {
@@ -39,8 +223,11 @@ export default function Result() {
   };
 
   const isWin = isWinner === true;
-  const isDraw =
-    currentMatch?.winner === null && currentMatch?.status === "COMPLETED";
+  // Draw when winner is null (handles COMPLETED, SETTLING, and SETTLED statuses)
+  const isDraw = currentMatch?.winner === null && 
+    (currentMatch?.status === "COMPLETED" || 
+     currentMatch?.status === "SETTLING" || 
+     currentMatch?.status === "SETTLED");
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -121,78 +308,61 @@ export default function Result() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-zinc-400">Outcome</p>
-                    <p
-                      className={`text-title ${currentMatch.endPrice! > currentMatch.startPrice! ? "text-green-500" : "text-rose-500"}`}
-                    >
-                      {currentMatch.endPrice! > currentMatch.startPrice!
-                        ? "▲ UP"
-                        : "▼ DOWN"}
+                    <p className="text-sm text-zinc-400">Game Mode</p>
+                    <p className="text-title text-amber-400">
+                      {currentMatch.gameType === "TRADE_DUEL" 
+                        ? "⚡ Trade Duel" 
+                        : "🔮 Prediction"}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-zinc-400">Start Price</p>
                     <p className="text-title text-mono">
-                      ${currentMatch.startPrice?.toLocaleString()}
+                      ${currentMatch.startPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-zinc-400">End Price</p>
                     <p className="text-title text-mono">
-                      ${currentMatch.endPrice?.toLocaleString()}
+                      ${currentMatch.endPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
+                  {/* Show price movement for Prediction mode only */}
+                  {currentMatch.gameType !== "TRADE_DUEL" && currentMatch.startPrice && currentMatch.endPrice && (
+                    <>
+                      <div className="col-span-2">
+                        <p className="text-sm text-zinc-400">Price Movement</p>
+                        <p
+                          className={`text-title ${currentMatch.endPrice > currentMatch.startPrice ? "text-green-500" : "text-rose-500"}`}
+                        >
+                          {currentMatch.endPrice > currentMatch.startPrice
+                            ? "▲ UP"
+                            : "▼ DOWN"}
+                          <span className="text-sm ml-2">
+                            ({currentMatch.endPrice > currentMatch.startPrice ? "+" : ""}
+                            {(((currentMatch.endPrice - currentMatch.startPrice) / currentMatch.startPrice) * 100).toFixed(2)}%)
+                          </span>
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {/* Predictions Comparison */}
-                <div className="mt-8 grid grid-cols-2 gap-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
-                  <div className="text-center">
-                    <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                      Your Prediction
-                    </p>
-                    <p
-                      className={`text-headline ${
-                        (currentMatch.playerA === playerId
-                          ? currentMatch.predictionA
-                          : currentMatch.predictionB) === "UP"
-                          ? "text-green-500"
-                          : "text-rose-500"
-                      }`}
-                    >
-                      {(currentMatch.playerA === playerId
-                        ? currentMatch.predictionA
-                        : currentMatch.predictionB) === "UP"
-                        ? "▲ UP"
-                        : "▼ DOWN"}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                      Opponent Prediction
-                    </p>
-                    <p
-                      className={`text-headline ${
-                        (currentMatch.playerA === playerId
-                          ? currentMatch.predictionB
-                          : currentMatch.predictionA) === "UP"
-                          ? "text-green-500"
-                          : "text-rose-500"
-                      }`}
-                    >
-                      {(
-                        currentMatch.playerA === playerId
-                          ? currentMatch.predictionB
-                          : currentMatch.predictionA
-                      )
-                        ? (currentMatch.playerA === playerId
-                            ? currentMatch.predictionB
-                            : currentMatch.predictionA) === "UP"
-                          ? "▲ UP"
-                          : "▼ DOWN"
-                        : "No Prediction"}
-                    </p>
-                  </div>
-                </div>
+                {/* Game-specific Results */}
+                {currentMatch.gameType === "TRADE_DUEL" ? (
+                  /* Trade Duel: Show Profit Comparison */
+                  <TradeDuelResults 
+                    matchData={currentMatch.matchData} 
+                    isPlayerA={currentMatch.playerA === playerId}
+                  />
+                ) : (
+                  /* Prediction Game: Show UP/DOWN Comparison with correctness */
+                  <PredictionResults 
+                    currentMatch={currentMatch}
+                    playerId={playerId}
+                    isDraw={isDraw}
+                  />
+                )}
               </div>
             )}
 

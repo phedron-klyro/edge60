@@ -187,15 +187,61 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         error: null,
       };
 
-    case "UPDATE_GAME_STATE":
+    case "UPDATE_GAME_STATE": {
       if (!state.currentMatch) return state;
+      
+      // Extract matchData and synced fields from the action
+      const { matchData, predictions, prices } = action as any;
+      
+      // Build the updated match with all synced fields
+      const updatedMatch = {
+        ...state.currentMatch,
+        matchData: matchData || action.state,
+      };
+      
+      // Sync predictions from the enhanced event or fallback to matchData
+      if (predictions) {
+        // Use explicit predictions object from backend
+        if (predictions.predictionA !== undefined) {
+          updatedMatch.predictionA = predictions.predictionA;
+        }
+        if (predictions.predictionB !== undefined) {
+          updatedMatch.predictionB = predictions.predictionB;
+        }
+      } else if (updatedMatch.matchData) {
+        // Fallback: sync from matchData for backward compatibility
+        if (updatedMatch.matchData.predictionA !== undefined) {
+          updatedMatch.predictionA = updatedMatch.matchData.predictionA;
+        }
+        if (updatedMatch.matchData.predictionB !== undefined) {
+          updatedMatch.predictionB = updatedMatch.matchData.predictionB;
+        }
+      }
+      
+      // Sync prices from the enhanced event or fallback to matchData
+      if (prices) {
+        // Use explicit prices object from backend
+        if (prices.startPrice !== undefined && prices.startPrice !== null) {
+          updatedMatch.startPrice = prices.startPrice;
+        }
+        if (prices.endPrice !== undefined && prices.endPrice !== null) {
+          updatedMatch.endPrice = prices.endPrice;
+        }
+      } else if (updatedMatch.matchData) {
+        // Fallback: sync from matchData for backward compatibility
+        if (updatedMatch.matchData.startPrice !== undefined && updatedMatch.matchData.startPrice !== null) {
+          updatedMatch.startPrice = updatedMatch.matchData.startPrice;
+        }
+        if (updatedMatch.matchData.endPrice !== undefined && updatedMatch.matchData.endPrice !== null) {
+          updatedMatch.endPrice = updatedMatch.matchData.endPrice;
+        }
+      }
+      
       return {
         ...state,
-        currentMatch: {
-          ...state.currentMatch,
-          matchData: action.state,
-        },
+        currentMatch: updatedMatch,
       };
+    }
 
     case "SET_PREDICTION":
       return { ...state, myPrediction: action.prediction };
@@ -311,42 +357,52 @@ export function GameProvider({ children }: GameProviderProps) {
           break;
 
         case "START_MATCH":
-          if (state.currentMatch || state.matchProposal) {
-            // If we had a proposal, we can construct initial match object from it + event data
-            // Or rely on the fact that Match object is synced via other means.
-            // Ideally MATCH_FOUND or START_MATCH payload contains full Match.
-            // The backend START_MATCH event currently sends limited data, but let's assume partial update is okay
-            // OR rely on previous data.
+          if (state.currentMatch || state.matchProposal || (event as any).match) {
+            // Prefer the full match object from the event if available
+            const fullMatch = (event as any).match;
+            
+            if (fullMatch) {
+              // Use the full match object from backend (authoritative)
+              const updatedMatch: Match = {
+                ...fullMatch,
+                status: "ACTIVE" as MatchStatus,
+              };
+              dispatch({ type: "SET_PLAYING", match: updatedMatch });
+            } else {
+              // Fallback: construct from existing state and event data
+              const baseMatch: any = state.currentMatch || {
+                id: event.matchId,
+                stake: state.matchProposal?.stake || 0,
+                gameType: state.matchProposal?.gameType || "PREDICTION",
+                asset: state.matchProposal?.asset || "ETH/USD",
+                playerA: state.playerId || "",
+                playerB: null,
+                duration: 60,
+                predictionA: null,
+                predictionB: null,
+              };
 
-            // Issue: We might not have 'currentMatch' if we went PROPOSED -> START directly without MATCH_FOUND full payload.
-            // Backend START_MATCH logic: sends full restart?
-            // Updated backend sends: matchId, startTime, startPrice.
-            // We need full match object. Backend should probably send full match on start.
-
-            // Temporary fix: we assume we know the context from proposal.
-            const baseMatch: any = state.currentMatch || {
-              id: event.matchId,
-              stake: state.matchProposal?.stake || 0,
-              gameType: state.matchProposal?.gameType || "PREDICTION",
-              asset: state.matchProposal?.asset || "ETH/USD",
-              playerA: state.playerId || "", // We don't know who is A or B yet fully if we missed MATCH_FOUND
-              playerB: null,
-              duration: 60,
-            };
-
-            const updatedMatch = {
-              ...baseMatch,
-              startTime: event.startTime as number,
-              startPrice: event.startPrice as number,
-              asset: event.asset || baseMatch.asset, // Ensure asset is present
-              status: "ACTIVE" as MatchStatus,
-            };
-            dispatch({ type: "SET_PLAYING", match: updatedMatch });
+              const updatedMatch = {
+                ...baseMatch,
+                startTime: event.startTime as number,
+                startPrice: event.startPrice as number,
+                asset: event.asset || baseMatch.asset,
+                status: "ACTIVE" as MatchStatus,
+              };
+              dispatch({ type: "SET_PLAYING", match: updatedMatch });
+            }
           }
           break;
 
         case "GAME_STATE_UPDATE":
-          dispatch({ type: "UPDATE_GAME_STATE", state: event.state });
+          // Pass enhanced event data including predictions and prices if available
+          dispatch({ 
+            type: "UPDATE_GAME_STATE", 
+            state: event.state,
+            matchData: event.state,
+            predictions: (event as any).predictions,
+            prices: (event as any).prices,
+          } as any);
           break;
 
         case "PREDICTION_RECEIVED":

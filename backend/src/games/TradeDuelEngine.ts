@@ -22,11 +22,23 @@ interface PlayerState {
   tradeHistory: any[];
 }
 
+interface TradeDuelResults {
+  initialBalance: number;
+  playerAFinalBalance: number;
+  playerBFinalBalance: number;
+  playerAProfit: number;
+  playerBProfit: number;
+  playerAProfitPercent: number;
+  playerBProfitPercent: number;
+}
+
 interface TradeDuelData {
   startPrice: number;
   endPrice: number | null;
+  initialBalance: number;
   playerAState: PlayerState;
   playerBState: PlayerState;
+  results?: TradeDuelResults;
 }
 
 const INITIAL_BALANCE = 10000; // $10,000 Virtual Cash
@@ -34,9 +46,11 @@ const INITIAL_BALANCE = 10000; // $10,000 Virtual Cash
 export class TradeDuelEngine implements IGameEngine {
   /**
    * Initialize with $10k virtual balance
+   * Locks start price at match initiation
    */
   async onStart(match: Match): Promise<Partial<Match>> {
     const priceData = await PriceService.getPrice(match.asset);
+    const startPrice = priceData.price;
 
     const initialState: PlayerState = {
       virtualBalance: INITIAL_BALANCE,
@@ -45,9 +59,12 @@ export class TradeDuelEngine implements IGameEngine {
     };
 
     return {
+      // Sync start price to top-level for consistency
+      startPrice,
       matchData: {
-        startPrice: priceData.price,
+        startPrice,
         endPrice: null,
+        initialBalance: INITIAL_BALANCE,
         playerAState: JSON.parse(JSON.stringify(initialState)),
         playerBState: JSON.parse(JSON.stringify(initialState)),
       } as TradeDuelData,
@@ -195,7 +212,8 @@ export class TradeDuelEngine implements IGameEngine {
   }
 
   /**
-   * Determine winner by portfolio value
+   * Determine winner by portfolio value (highest profit wins)
+   * Locks end price at match completion
    */
   async onComplete(match: Match): Promise<Partial<Match>> {
     const data = match.matchData as TradeDuelData;
@@ -208,18 +226,50 @@ export class TradeDuelEngine implements IGameEngine {
 
     const balanceA = data.playerAState.virtualBalance;
     const balanceB = data.playerBState.virtualBalance;
+    const initialBalance = INITIAL_BALANCE;
+
+    // Calculate profit/loss for each player
+    const profitA = balanceA - initialBalance;
+    const profitB = balanceB - initialBalance;
 
     console.log(
-      `[TradeDuel] End Balances - A: $${balanceA.toFixed(2)}, B: $${balanceB.toFixed(2)}`,
+      `[TradeDuel] End Balances - A: $${balanceA.toFixed(2)} (PnL: ${profitA >= 0 ? '+' : ''}${profitA.toFixed(2)}), B: $${balanceB.toFixed(2)} (PnL: ${profitB >= 0 ? '+' : ''}${profitB.toFixed(2)})`,
     );
 
+    // Determine winner based on profit
     let winner: string | null = null;
-    if (balanceA > balanceB) winner = match.playerA;
-    else if (balanceB > balanceA && match.playerB) winner = match.playerB;
-    else winner = null; // Draw
+    
+    // If both are non-profitable (both <= 0), it's a draw
+    if (profitA <= 0 && profitB <= 0) {
+      winner = null; // Draw - neither made profit
+      console.log(`[TradeDuel] Result: DRAW (both non-profitable)`);
+    } else if (profitA > profitB) {
+      winner = match.playerA;
+      console.log(`[TradeDuel] Result: Player A wins with higher profit`);
+    } else if (profitB > profitA && match.playerB) {
+      winner = match.playerB;
+      console.log(`[TradeDuel] Result: Player B wins with higher profit`);
+    } else {
+      winner = null; // Draw - same profit
+      console.log(`[TradeDuel] Result: DRAW (same profit)`);
+    }
+
+    // Store trade duel specific results in matchData
+    (data as any).results = {
+      initialBalance,
+      playerAFinalBalance: balanceA,
+      playerBFinalBalance: balanceB,
+      playerAProfit: profitA,
+      playerBProfit: profitB,
+      playerAProfitPercent: (profitA / initialBalance) * 100,
+      playerBProfitPercent: (profitB / initialBalance) * 100,
+    };
 
     return {
       winner,
+      // Sync prices to top-level for consistency
+      startPrice: data.startPrice,
+      endPrice,
       matchData: data,
     };
   }

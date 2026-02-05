@@ -462,6 +462,137 @@ class TreasuryServiceClass {
   }
 
   /**
+   * Refund stake to a player (used for draws - no rake)
+   */
+  async refundStake(
+    player: Address,
+    amount: number,
+    refundId: string,
+  ): Promise<SettlementResult> {
+    console.log(
+      `\n╔══════════════════ TREASURY REFUND ═══════════════════════════╗`,
+    );
+    console.log(`║ Network:      ${ACTIVE_CHAIN.name}`);
+    console.log(`║ Refund ID:    ${refundId.slice(0, 20)}...`);
+    console.log(`║ Player:       ${player}`);
+    console.log(`║ Amount:       ${amount} USDC (no rake)`);
+    console.log(
+      `╠══════════════════════════════════════════════════════════════╣`,
+    );
+
+    // Check configuration
+    if (!this.isConfigured || !this.walletClient || !this.account) {
+      console.log(`║ ⚠️  [NOT CONFIGURED] Simulated refund (Demo Mode)`);
+      console.log(
+        `╚══════════════════════════════════════════════════════════════╝\n`,
+      );
+      return {
+        status: "confirmed", // Treat as confirmed in demo mode for draws
+        grossAmount: amount.toString(),
+        rake: "0",
+        netPayout: amount.toString(),
+      };
+    }
+
+    try {
+      const amountWei = parseUnits(amount.toString(), 6);
+
+      // Check Treasury Balance
+      console.log(`║ 📊 [CHECKING] Treasury balance...`);
+      const treasuryBalance = (await this.publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [TREASURY_ADDRESS],
+      })) as bigint;
+
+      const treasuryBalanceFormatted = formatUnits(treasuryBalance, 6);
+      console.log(`║    Treasury USDC: ${treasuryBalanceFormatted}`);
+
+      if (treasuryBalance < amountWei) {
+        throw new Error(
+          `Insufficient treasury balance for refund: ${treasuryBalanceFormatted} < ${amount}`,
+        );
+      }
+
+      // Use settleMatch with 0 rake by setting the full amount as gross
+      // The contract will calculate rake, but for a refund we treat full amount as payout
+      console.log(`║ 📤 [SUBMITTING] Refund via settlement (full amount)...`);
+
+      const matchIdNum = this.matchIdToNumber(refundId);
+      const gasEstimate = await this.publicClient.estimateContractGas({
+        address: TREASURY_ADDRESS,
+        abi: TREASURY_ABI,
+        functionName: "settleMatch",
+        args: [player, amountWei, BigInt(matchIdNum)],
+        account: this.account.address,
+      });
+
+      const txHash = await this.walletClient.writeContract({
+        address: TREASURY_ADDRESS,
+        abi: TREASURY_ABI,
+        functionName: "settleMatch",
+        args: [player, amountWei, BigInt(matchIdNum)],
+        gas: gasEstimate + BigInt(50000),
+        chain: ACTIVE_CHAIN as any,
+        account: this.account,
+      });
+
+      console.log(`║ ✓  Tx Hash: ${txHash}`);
+
+      const receipt = await this.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 1,
+        timeout: 60_000,
+      });
+
+      if (receipt.status === "reverted") {
+        throw new Error("Refund transaction reverted");
+      }
+
+      const explorerUrl = `${EXPLORER_URL}/tx/${txHash}`;
+
+      // Parse the actual values from the event
+      const settlementData = this.parseSettlementEvent(receipt, matchIdNum);
+
+      console.log(`║ ✓  Block: ${receipt.blockNumber}`);
+      console.log(`║`);
+      console.log(`║ 💸 [REFUND COMPLETE]`);
+      console.log(`║    Amount:    ${settlementData.netPayout} USDC → Player`);
+      console.log(`║    Rake:      ${settlementData.rake} USDC (platform fee still applies)`);
+      console.log(`║`);
+      console.log(`║ 🔗 ${explorerUrl}`);
+      console.log(
+        `╚══════════════════════════════════════════════════════════════╝\n`,
+      );
+
+      return {
+        status: "confirmed",
+        txHash,
+        blockNumber: receipt.blockNumber,
+        grossAmount: settlementData.grossAmount,
+        rake: settlementData.rake,
+        netPayout: settlementData.netPayout,
+        explorerUrl,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      console.log(`║ ❌ [REFUND FAILED] ${errorMsg.slice(0, 50)}...`);
+      console.log(
+        `╚══════════════════════════════════════════════════════════════╝\n`,
+      );
+
+      return {
+        status: "failed",
+        error: errorMsg,
+        grossAmount: amount.toString(),
+        rake: "0",
+        netPayout: amount.toString(),
+      };
+    }
+  }
+
+  /**
    * Handle unconfigured state (returns calculated values without tx)
    */
   private handleUnconfigured(grossAmount: number): SettlementResult {

@@ -239,13 +239,24 @@ export class MatchService {
       matchId,
       startTime,
       startPrice,
+      asset: updated.asset,
+      // Include full match for comprehensive state sync
+      match: updated,
     });
 
-    // Also send generic game state
+    // Also send generic game state with synced fields for consistency
     PlayerStore.broadcast(players, {
       type: "GAME_STATE_UPDATE",
       matchId,
       state: updated.matchData,
+      predictions: {
+        predictionA: updated.predictionA,
+        predictionB: updated.predictionB,
+      },
+      prices: {
+        startPrice: updated.startPrice,
+        endPrice: updated.endPrice,
+      },
     });
 
     // 5. Start Timer
@@ -287,30 +298,59 @@ export class MatchService {
     const success = engine.onAction(match, playerId, action, payload);
 
     if (success) {
-      // Update store with new matchData (engine modified match.matchData directly or we need re-save?)
-      // In-memory objects in JS are references, so match.matchData is likely mutated.
-      // But MatchStore.update triggers persistence usually.
-      // Let's force an update call to be safe and trigger generic events if potential "watchers" exist.
-      MatchStore.update(matchId, { matchData: match.matchData });
+      // Sync predictions from matchData to top-level match fields
+      // This ensures both locations have the same data for consistency
+      const matchData = match.matchData;
+      const syncedFields: Partial<Match> = {
+        matchData: match.matchData,
+      };
 
-      // Broadcast new state to opponents
-      const opponentId =
-        match.playerA === playerId ? match.playerB : match.playerA;
-      if (opponentId) {
-        PlayerStore.send(opponentId, {
-          type: "GAME_STATE_UPDATE",
-          matchId,
-          state: match.matchData,
-        });
+      // Sync predictions if they exist in matchData (for Prediction game)
+      if (matchData?.predictionA !== undefined) {
+        syncedFields.predictionA = matchData.predictionA;
+      }
+      if (matchData?.predictionB !== undefined) {
+        syncedFields.predictionB = matchData.predictionB;
       }
 
-      // Also send back to sender for confirmation?
-      // Usually UI optimistically updates, but good to sync.
-      PlayerStore.send(playerId, {
-        type: "GAME_STATE_UPDATE",
-        matchId,
-        state: match.matchData,
-      });
+      // Sync prices if they exist in matchData
+      if (matchData?.startPrice !== undefined && matchData.startPrice !== null) {
+        syncedFields.startPrice = matchData.startPrice;
+      }
+      if (matchData?.endPrice !== undefined && matchData.endPrice !== null) {
+        syncedFields.endPrice = matchData.endPrice;
+      }
+
+      // Update store with synced fields
+      const updated = MatchStore.update(matchId, syncedFields);
+
+      if (updated) {
+        // Create a comprehensive state update that includes both matchData and synced fields
+        const stateUpdate = {
+          matchData: updated.matchData,
+          predictionA: updated.predictionA,
+          predictionB: updated.predictionB,
+          startPrice: updated.startPrice,
+          endPrice: updated.endPrice,
+        };
+
+        // Broadcast new state to BOTH players simultaneously for consistent state
+        const players = [match.playerA, match.playerB].filter(Boolean) as string[];
+        PlayerStore.broadcast(players, {
+          type: "GAME_STATE_UPDATE",
+          matchId,
+          state: updated.matchData,
+          // Include synced fields for frontend state consistency
+          predictions: {
+            predictionA: updated.predictionA,
+            predictionB: updated.predictionB,
+          },
+          prices: {
+            startPrice: updated.startPrice,
+            endPrice: updated.endPrice,
+          },
+        });
+      }
     }
 
     return success;
@@ -399,13 +439,42 @@ export class MatchService {
         explorerUrl: result.explorerUrl,
       };
     } else {
-      // Draw
-      console.log(`[MatchService] Settling DRAW`);
+      // Draw - return stakes to both players
+      console.log(`[MatchService] Settling DRAW - returning stakes to both players`);
+      
+      // Refund Player A
+      const playerAAddress = match.playerA as Address;
+      const playerAResult = await TreasuryService.refundStake(
+        playerAAddress,
+        match.stake, // Return their original stake
+        matchId + "-A-refund",
+      );
+      
+      // Refund Player B
+      let playerBResult: { status: string; error?: string } = { status: "confirmed" };
+      if (match.playerB) {
+        const playerBAddress = match.playerB as Address;
+        const refundB = await TreasuryService.refundStake(
+          playerBAddress,
+          match.stake, // Return their original stake
+          matchId + "-B-refund",
+        );
+        playerBResult = { status: refundB.status, error: refundB.error };
+        
+        console.log(`[MatchService] Draw refunds: A=${playerAResult.status}, B=${playerBResult.status}`);
+      }
+      
+      // For draws, settlement shows stake returned to each player
       settlement = {
-        status: "confirmed",
-        grossAmount: "0",
-        rake: "0",
-        netPayout: "0",
+        status: playerAResult.status === "confirmed" && playerBResult.status === "confirmed" 
+          ? "confirmed" 
+          : "failed",
+        txHash: playerAResult.txHash,
+        grossAmount: String(match.stake),
+        rake: playerAResult.rake || "0",
+        netPayout: playerAResult.netPayout || String(match.stake),
+        explorerUrl: playerAResult.explorerUrl,
+        error: playerAResult.error || (playerBResult as any).error,
       };
     }
 

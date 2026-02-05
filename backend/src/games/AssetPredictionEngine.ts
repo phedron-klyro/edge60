@@ -19,6 +19,7 @@ interface PredictionMatchData {
 export class AssetPredictionEngine implements IGameEngine {
   /**
    * Initialize match with start price
+   * Returns both matchData and top-level startPrice for consistency
    */
   async onStart(match: Match): Promise<Partial<Match>> {
     console.log(
@@ -26,10 +27,14 @@ export class AssetPredictionEngine implements IGameEngine {
     );
 
     const priceData = await PriceService.getPrice(match.asset);
+    const startPrice = priceData.price;
 
     return {
+      // Top-level field for consistency
+      startPrice,
+      // Engine-specific matchData
       matchData: {
-        startPrice: priceData.price,
+        startPrice,
         endPrice: null,
         predictionA: null,
         predictionB: null,
@@ -71,6 +76,7 @@ export class AssetPredictionEngine implements IGameEngine {
 
   /**
    * Calculate winner based on price movement
+   * Returns synced predictions and prices at top-level for consistency
    */
   async onComplete(match: Match): Promise<Partial<Match>> {
     const data = match.matchData as PredictionMatchData;
@@ -117,9 +123,17 @@ export class AssetPredictionEngine implements IGameEngine {
     console.log(
       `[PredictionEngine] Price: ${startPrice} -> ${endPrice} (${correctPrediction})`,
     );
+    console.log(`[PredictionEngine] Predictions: A=${predA}, B=${predB}`);
 
     return {
       winner,
+      // Sync predictions to top-level for consistent state
+      predictionA: predA,
+      predictionB: predB,
+      // Sync prices to top-level for consistent state
+      startPrice,
+      endPrice,
+      // Engine-specific matchData
       matchData: data,
     };
   }
