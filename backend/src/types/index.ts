@@ -15,7 +15,9 @@
 export enum MatchStatus {
   /** Player A joined, waiting for Player B */
   WAITING = "WAITING",
-  /** Both players joined, timer running */
+  /** Match found, waiting for both players to accept */
+  PROPOSED = "PROPOSED",
+  /** Both players accepted/active, timer running */
   ACTIVE = "ACTIVE",
   /** Timer ended, winner calculated */
   COMPLETED = "COMPLETED",
@@ -58,6 +60,12 @@ export interface SettlementInfo {
 // PREDICTION TYPE
 // ============================================
 
+// ============================================
+// GAME TYPES
+// ============================================
+
+export type GameType = "PREDICTION" | "TRADE_DUEL";
+
 export type Prediction = "UP" | "DOWN";
 
 // ============================================
@@ -87,12 +95,20 @@ export interface Match {
   predictionA: Prediction | null;
   /** Player B's price prediction */
   predictionB: Prediction | null;
-  /** Asset being predicted (e.g., "ETH/USD") */
+
+  /** Game Type (Prediction or Trade Duel) */
+  gameType: GameType;
+  /** Asset (e.g., "ETH/USD", "BTC/USD") */
   asset: string;
-  /** Starting price when match began */
+
+  /** Starting price (T0) */
   startPrice: number | null;
-  /** Ending price when match completed */
+  /** Ending price (T1) */
   endPrice: number | null;
+
+  /** Generic container for Game Engine state */
+  matchData?: any;
+
   /** On-chain settlement info (populated after settlement) */
   settlement?: SettlementInfo;
 }
@@ -126,9 +142,14 @@ export type ClientEvent =
       type: "JOIN_QUEUE";
       playerId: string;
       stake: number;
+      gameType: GameType;
+      asset: string;
       walletAddress?: string;
       yellowSessionId?: string;
     }
+  | { type: "ACCEPT_MATCH"; matchId: string; playerId: string }
+  | { type: "DECLINE_MATCH"; matchId: string; playerId: string }
+  | { type: "GAME_ACTION"; matchId: string; action: string; payload: any }
   | { type: "SUBMIT_PREDICTION"; matchId: string; prediction: Prediction }
   | { type: "LEAVE_QUEUE"; playerId: string }
   | { type: "PING" };
@@ -138,6 +159,14 @@ export type ClientEvent =
  */
 export type ServerEvent =
   | { type: "QUEUE_JOINED"; position: number }
+  | {
+      type: "MATCH_PROPOSED";
+      matchId: string;
+      stake: number;
+      gameType: GameType;
+      asset: string;
+      expiresAt: number;
+    }
   | { type: "MATCH_FOUND"; match: Match }
   | {
       type: "START_MATCH";
@@ -145,6 +174,7 @@ export type ServerEvent =
       startTime: number;
       startPrice: number;
     }
+  | { type: "GAME_STATE_UPDATE"; matchId: string; state: any }
   | { type: "PREDICTION_RECEIVED"; matchId: string }
   | { type: "MATCH_RESULT"; match: Match }
   | { type: "SETTLEMENT_STARTED"; matchId: string }
@@ -160,6 +190,8 @@ export type ServerEvent =
 export interface QueueEntry {
   playerId: string;
   stake: number;
+  gameType: GameType;
+  asset: string;
   joinedAt: number;
   walletAddress?: string;
   yellowSessionId?: string;

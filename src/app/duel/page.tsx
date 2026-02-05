@@ -10,12 +10,25 @@ import {
   PredictionButtons,
   MatchStatusBanner,
 } from "@/components";
+import { TradeDuelInterface } from "@/components/game/TradeDuelInterface";
 import { useGame } from "@/context/GameContext";
 
 export default function Duel() {
   const router = useRouter();
-  const { currentMatch, myPrediction, submitPrediction, phase, playerId } =
-    useGame();
+  const {
+    currentMatch,
+    myPrediction,
+    submitPrediction,
+    sendGameAction,
+    phase,
+    playerId,
+  } = useGame();
+
+  const handlePredict = (value: "UP" | "DOWN" | null) => {
+    if (value && !myPrediction) {
+      submitPrediction(value);
+    }
+  };
 
   // Redirect if no active match
   useEffect(() => {
@@ -43,12 +56,6 @@ export default function Duel() {
     }
   }, [currentMatch?.startTime, currentMatch?.duration, currentMatch?.status]);
 
-  const handlePredict = (value: "UP" | "DOWN" | null) => {
-    if (value && !myPrediction) {
-      submitPrediction(value);
-    }
-  };
-
   if (!currentMatch) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -58,13 +65,16 @@ export default function Duel() {
   }
 
   const isPlayerA = currentMatch.playerA === playerId;
-  const opponentId = isPlayerA ? currentMatch.playerB : currentMatch.playerA;
+  const isTradeDuel = currentMatch.gameType === "TRADE_DUEL";
+
+  // Legacy Prediction Logic variables
   const myActualPrediction = isPlayerA
     ? currentMatch.predictionA
     : currentMatch.predictionB;
   const opponentPrediction = isPlayerA
     ? currentMatch.predictionB
     : currentMatch.predictionA;
+  const opponentId = isPlayerA ? currentMatch.playerB : currentMatch.playerA;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -84,7 +94,8 @@ export default function Duel() {
       {/* Status Banner */}
       <MatchStatusBanner
         status={
-          currentMatch.status === "WAITING"
+          currentMatch.status === "WAITING" ||
+          currentMatch.status === "PROPOSED"
             ? "waiting"
             : currentMatch.status === "ACTIVE"
               ? "active"
@@ -95,139 +106,156 @@ export default function Duel() {
       {/* Main Content */}
       <main className="flex-1 p-8">
         <div className="max-w-4xl mx-auto space-y-8">
-          {/* Match Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Player 1 (You) */}
-            <div className="brutal-card text-center border-indigo-500">
-              <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-                You
-              </p>
-              <div className="text-title text-indigo-500 truncate px-2">
-                <ENSNameDisplay
-                  address={playerId as `0x${string}` | undefined}
-                  showAvatar
-                  avatarSize={48}
-                />
-              </div>
-              {myActualPrediction && (
-                <p
-                  className={`text-headline mt-4 ${
-                    myActualPrediction === "UP"
-                      ? "text-green-500"
-                      : "text-rose-500"
-                  }`}
-                >
-                  {myActualPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
-                </p>
-              )}
+          {/* Game Header Info */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="text-xl font-bold font-mono text-gray-400">
+              {isTradeDuel ? "⚡ TRADE DUEL" : "🔮 PREDICTION DUEL"}
             </div>
-
-            {/* VS */}
-            <div className="brutal-card text-center flex items-center justify-center bg-zinc-800">
-              <span className="text-display text-amber-400">VS</span>
-            </div>
-
-            {/* Player 2 (Opponent) */}
-            <div className="brutal-card text-center border-rose-500">
-              <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-                Opponent
-              </p>
-              <div className="text-title text-rose-500 truncate px-2">
-                {opponentId ? (
-                  <ENSNameDisplay
-                    address={opponentId as `0x${string}`}
-                    showAvatar
-                    avatarSize={48}
-                  />
-                ) : (
-                  "Waiting..."
-                )}
-              </div>
-              <p className="text-headline mt-4">
-                {opponentPrediction ? (
-                  <span
-                    className={
-                      opponentPrediction === "UP"
-                        ? "text-green-500"
-                        : "text-rose-500"
-                    }
-                  >
-                    {opponentPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
-                  </span>
-                ) : (
-                  <span className="text-zinc-500 animate-pulse">
-                    🔒 Waiting...
-                  </span>
-                )}
-              </p>
-            </div>
+            <CountdownTimer
+              duration={currentMatch.duration}
+              autoStart={currentMatch.status === "ACTIVE"}
+              onComplete={() => console.log("Timer ended")}
+            />
           </div>
 
-          {/* Asset & Price */}
-          <div className="brutal-card text-center">
-            <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-              {currentMatch.asset}
-            </p>
-            <p className="text-display text-mono">
-              {currentMatch.startPrice
-                ? `$${currentMatch.startPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : "Fetching Price..."}
-            </p>
-            <p className="text-sm text-zinc-500 mt-2">
-              Entry Price @{" "}
-              {currentMatch.startTime
-                ? new Date(currentMatch.startTime).toLocaleTimeString()
-                : "Pending"}
-            </p>
-          </div>
-
-          {/* Timer */}
-          <CountdownTimer
-            duration={currentMatch.duration}
-            autoStart={currentMatch.status === "ACTIVE"}
-            onComplete={() => console.log("Timer ended")}
-          />
-
-          {/* Stake Info */}
-          <div className="brutal-card flex items-center justify-center gap-8">
-            <div className="text-center">
-              <p className="text-sm uppercase tracking-widest text-zinc-400">
-                Stake
-              </p>
-              <p className="text-headline text-amber-400">
-                ${currentMatch.stake} USDC
-              </p>
-            </div>
-            <div className="w-px h-16 bg-zinc-700" />
-            <div className="text-center">
-              <p className="text-sm uppercase tracking-widest text-zinc-400">
-                Prize Pool
-              </p>
-              <p className="text-headline text-green-500">
-                ${currentMatch.stake * 2} USDC
-              </p>
-            </div>
-          </div>
-
-          {/* Prediction Buttons */}
-          {/* Use myPrediction (local state) OR myActualPrediction (server state) to determine if locked */}
-          {!(myPrediction || myActualPrediction) ? (
-            <div className="space-y-6">
-              <p className="text-center text-title text-zinc-400">
-                Will the price go UP or DOWN?
-              </p>
-              <PredictionButtons
-                onPredict={handlePredict}
-                disabled={currentMatch.status !== "ACTIVE"}
-              />
-            </div>
+          {/* Render Interface based on Game Type */}
+          {isTradeDuel ? (
+            <TradeDuelInterface
+              matchId={currentMatch.id}
+              asset={currentMatch.asset}
+              matchData={currentMatch.matchData}
+              onAction={sendGameAction}
+              isMePlayerA={isPlayerA}
+            />
           ) : (
-            <div className="brutal-card text-center bg-zinc-800 border-green-500 text-green-500">
-              <p className="text-title">Prediction Locked! 🔒</p>
-              <p className="text-body text-zinc-400 mt-2">
-                Waiting for the 60-second window to conclude...
-              </p>
-            </div>
+            <>
+              {/* Match Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Player 1 (You) */}
+                <div className="brutal-card text-center border-indigo-500">
+                  <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
+                    You
+                  </p>
+                  <div className="text-title text-indigo-500 truncate px-2">
+                    <ENSNameDisplay
+                      address={playerId as `0x${string}` | undefined}
+                      showAvatar
+                      avatarSize={48}
+                    />
+                  </div>
+                  {myActualPrediction && (
+                    <p
+                      className={`text-headline mt-4 ${
+                        myActualPrediction === "UP"
+                          ? "text-green-500"
+                          : "text-rose-500"
+                      }`}
+                    >
+                      {myActualPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
+                    </p>
+                  )}
+                </div>
+
+                {/* VS */}
+                <div className="brutal-card text-center flex items-center justify-center bg-zinc-800">
+                  <span className="text-display text-amber-400">VS</span>
+                </div>
+
+                {/* Player 2 (Opponent) */}
+                <div className="brutal-card text-center border-rose-500">
+                  <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
+                    Opponent
+                  </p>
+                  <div className="text-title text-rose-500 truncate px-2">
+                    {opponentId ? (
+                      <ENSNameDisplay
+                        address={opponentId as `0x${string}`}
+                        showAvatar
+                        avatarSize={48}
+                      />
+                    ) : (
+                      "Waiting..."
+                    )}
+                  </div>
+                  <p className="text-headline mt-4">
+                    {opponentPrediction ? (
+                      <span
+                        className={
+                          opponentPrediction === "UP"
+                            ? "text-green-500"
+                            : "text-rose-500"
+                        }
+                      >
+                        {opponentPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-500 animate-pulse">
+                        🔒 Waiting...
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Asset & Price */}
+              <div className="brutal-card text-center">
+                <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
+                  {currentMatch.asset}
+                </p>
+                <p className="text-display text-mono">
+                  {currentMatch.startPrice
+                    ? `$${currentMatch.startPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : "Fetching Price..."}
+                </p>
+                <p className="text-sm text-zinc-500 mt-2">
+                  Entry Price @{" "}
+                  {currentMatch.startTime
+                    ? new Date(currentMatch.startTime).toLocaleTimeString()
+                    : "Pending"}
+                </p>
+              </div>
+
+              {/* Stake Info */}
+              <div className="brutal-card flex items-center justify-center gap-8">
+                <div className="text-center">
+                  <p className="text-sm uppercase tracking-widest text-zinc-400">
+                    Stake
+                  </p>
+                  <p className="text-headline text-amber-400">
+                    ${currentMatch.stake} USDC
+                  </p>
+                </div>
+                <div className="w-px h-16 bg-zinc-700" />
+                <div className="text-center">
+                  <p className="text-sm uppercase tracking-widest text-zinc-400">
+                    Prize Pool
+                  </p>
+                  <p className="text-headline text-green-500">
+                    ${currentMatch.stake * 2} USDC
+                  </p>
+                </div>
+              </div>
+
+              {/* Prediction Buttons */}
+              {!(myPrediction || myActualPrediction) ? (
+                <div className="space-y-6">
+                  <p className="text-center text-title text-zinc-400">
+                    Will the price go UP or DOWN?
+                  </p>
+                  <PredictionButtons
+                    onPredict={handlePredict}
+                    disabled={currentMatch.status !== "ACTIVE"}
+                  />
+                </div>
+              ) : (
+                <div className="brutal-card text-center bg-zinc-800 border-green-500 text-green-500">
+                  <p className="text-title">Prediction Locked! 🔒</p>
+                  <p className="text-body text-zinc-400 mt-2">
+                    Waiting for the 60-second window to conclude...
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

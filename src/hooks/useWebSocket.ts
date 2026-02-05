@@ -1,6 +1,6 @@
 /**
  * Edge60 Frontend - WebSocket Hook
- * 
+ *
  * Manages WebSocket connection to the backend
  */
 
@@ -12,13 +12,43 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3002/ws";
 
 // Connection states
-export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 // Server event types
-export interface ServerEvent {
-  type: string;
-  [key: string]: unknown;
-}
+// Server event types
+export type ServerEvent =
+  | { type: "CONNECTED"; playerId: string; message: string }
+  | { type: "QUEUE_JOINED"; position: number }
+  | { type: "QUEUE_LEFT" }
+  | {
+      type: "MATCH_PROPOSED";
+      matchId: string;
+      stake: number;
+      gameType: string;
+      asset: string;
+      expiresAt: number;
+    }
+  | { type: "MATCH_FOUND"; match: any }
+  | {
+      type: "START_MATCH";
+      matchId: string;
+      startTime: number;
+      startPrice: number;
+      asset?: string;
+      duration?: number;
+    }
+  | { type: "GAME_STATE_UPDATE"; matchId: string; state: any }
+  | { type: "PREDICTION_RECEIVED"; matchId: string }
+  | { type: "MATCH_RESULT"; match: any }
+  | { type: "SETTLEMENT_STARTED"; matchId: string }
+  | { type: "SETTLEMENT_COMPLETE"; match: any; settlement: any }
+  | { type: "SETTLEMENT_FAILED"; matchId: string; error: string }
+  | { type: "ERROR"; message: string }
+  | { type: "PONG" };
 
 interface UseWebSocketOptions {
   onMessage?: (event: ServerEvent) => void;
@@ -36,14 +66,18 @@ interface UseWebSocketReturn {
   isConnected: boolean;
 }
 
-export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
+export function useWebSocket(
+  options: UseWebSocketOptions = {},
+): UseWebSocketReturn {
   const { onMessage, onConnect, onDisconnect, autoConnect = true } = options;
-  
+
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [playerId, setPlayerId] = useState<string | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
 
@@ -115,10 +149,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
         // Auto-reconnect with exponential backoff
         if (reconnectAttempts.current < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 10000);
+          const delay = Math.min(
+            1000 * Math.pow(2, reconnectAttempts.current),
+            10000,
+          );
           reconnectAttempts.current++;
-          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current})`);
-          reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), delay);
+          console.log(
+            `[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts.current})`,
+          );
+          reconnectTimeoutRef.current = setTimeout(
+            () => connectRef.current(),
+            delay,
+          );
         }
       };
 
@@ -126,7 +168,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         console.error("[WS] Connection Error:", {
           url: WS_URL,
           readyState: ws.readyState,
-          error
+          error,
         });
         setStatus("error");
       };

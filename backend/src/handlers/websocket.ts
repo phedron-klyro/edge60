@@ -19,7 +19,7 @@ export function handleConnection(socket: WebSocket): string {
 
   PlayerStore.add(playerId, socket);
 
-  // Send welcome message with assigned ID
+  // Send welcome message with assigned connection ID
   socket.send(
     JSON.stringify({
       type: "CONNECTED",
@@ -47,7 +47,7 @@ export function handleDisconnect(playerId: string): void {
       // Cancel waiting match
       matchService.cancelMatch(match.id, "Player disconnected");
     }
-    // For active matches, let them complete normally
+    // For active matches, let them complete normally (or auto-forfeit if logic added)
   }
 
   // Remove player connection
@@ -81,6 +81,8 @@ export async function handleMessage(
       await handleJoinQueue(
         playerId,
         event.stake,
+        event.gameType || "PREDICTION", // Default for compatibility
+        event.asset || "ETH/USD", // Default for compatibility
         event.walletAddress,
         event.yellowSessionId,
       );
@@ -90,8 +92,31 @@ export async function handleMessage(
       handleLeaveQueue(playerId);
       break;
 
+    case "ACCEPT_MATCH":
+      await matchService.acceptMatch(event.matchId, playerId);
+      break;
+
+    case "DECLINE_MATCH":
+      matchService.cancelMatch(event.matchId, "Match declined by player");
+      break;
+
     case "SUBMIT_PREDICTION":
-      handleSubmitPrediction(playerId, event.matchId, event.prediction);
+      // Legacy support -> converts to generic action
+      matchService.handleGameAction(
+        event.matchId,
+        playerId,
+        "SUBMIT_PREDICTION",
+        { prediction: event.prediction },
+      );
+      break;
+
+    case "GAME_ACTION":
+      matchService.handleGameAction(
+        event.matchId,
+        playerId,
+        event.action,
+        event.payload,
+      );
       break;
 
     case "PING":
@@ -112,6 +137,8 @@ export async function handleMessage(
 async function handleJoinQueue(
   playerId: string,
   stake: number,
+  gameType: any,
+  asset: string,
   walletAddress?: string,
   yellowSessionId?: string,
 ): Promise<void> {
@@ -153,6 +180,8 @@ async function handleJoinQueue(
   const result = await matchmakingService.joinQueue(
     activePlayerId,
     stake,
+    gameType,
+    asset,
     walletAddress,
     yellowSessionId,
   );
@@ -179,38 +208,5 @@ function handleLeaveQueue(playerId: string): void {
 
   if (removed) {
     console.log(`👋 [LEFT QUEUE] ${playerId}`);
-  }
-}
-
-/**
- * Handle SUBMIT_PREDICTION event
- */
-function handleSubmitPrediction(
-  playerId: string,
-  matchId: string,
-  prediction: Prediction,
-): void {
-  // Validate prediction
-  if (prediction !== "UP" && prediction !== "DOWN") {
-    PlayerStore.send(playerId, {
-      type: "ERROR",
-      message: "Invalid prediction. Must be 'UP' or 'DOWN'",
-    });
-    return;
-  }
-
-  const success = matchService.submitPrediction(matchId, playerId, prediction);
-
-  if (success) {
-    PlayerStore.send(playerId, {
-      type: "PREDICTION_RECEIVED",
-      matchId,
-    });
-  } else {
-    PlayerStore.send(playerId, {
-      type: "ERROR",
-      message:
-        "Could not submit prediction. Match may be invalid or not active.",
-    });
   }
 }

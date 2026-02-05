@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   WalletConnectButton,
   ENSNameDisplay,
@@ -10,9 +10,9 @@ import {
   BalanceCard,
   YellowSessionCard,
 } from "@/components";
+import { MatchProposal } from "@/components/game/MatchProposal";
 import { useAccount, useBalance } from "wagmi";
 import { useGame } from "@/context/GameContext";
-import { useState } from "react";
 
 // Connection status indicator component
 const ConnectionStatus = ({ connected }: { connected: boolean }) => (
@@ -35,8 +35,16 @@ export default function Dashboard() {
     queuePosition,
     joinQueue,
     leaveQueue,
+    matchProposal,
+    acceptMatch,
+    declineMatch,
     yellow,
   } = useGame();
+
+  // Local state for game selection
+  const [selectedGame, setSelectedGame] = useState("PREDICTION");
+  const [selectedAsset, setSelectedAsset] = useState("ETH/USD");
+  const [selectedStake, setSelectedStake] = useState(1);
 
   // Fetch real USDC balance
   const { data: balanceData } = useBalance({
@@ -61,9 +69,9 @@ export default function Dashboard() {
       .catch((err) => console.error("Failed to fetch stats:", err));
   }, []);
 
-  // Redirect to duel page when match is found
+  // Redirect to duel page when match is ACTIVE or PLAYING (not just matched/proposed)
   useEffect(() => {
-    if (phase === "matched" || phase === "playing") {
+    if (phase === "playing") {
       router.push("/duel");
     }
   }, [phase, router]);
@@ -74,11 +82,20 @@ export default function Dashboard() {
       alert("Connecting to game server...");
       return;
     }
-    joinQueue(1); // $1 USDC fixed stake
+    joinQueue(selectedStake, selectedGame, selectedAsset);
   };
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Match Proposal Modal */}
+      {matchProposal && (
+        <MatchProposal
+          proposal={matchProposal}
+          onAccept={() => acceptMatch(matchProposal.matchId)}
+          onDecline={() => declineMatch(matchProposal.matchId)}
+        />
+      )}
+
       {/* Header */}
       <header className="border-b-4 border-white p-6 flex items-center justify-between">
         <Link href="/">
@@ -194,34 +211,77 @@ export default function Dashboard() {
           </div>
 
           {/* Join Duel Section */}
-          <div className="brutal-card bg-zinc-800 flex flex-col md:flex-row items-center justify-between gap-6 p-8">
-            <div>
-              <h3 className="text-headline text-amber-400">
-                {phase === "queuing" ? "⏳ In Queue..." : "Ready to Duel?"}
-              </h3>
-              <p className="text-body text-zinc-400 mt-2">
-                {phase === "queuing"
-                  ? `Position: ${queuePosition || "matching..."} - Finding opponent...`
-                  : "Stake $1 USDC and predict if ETH goes UP or DOWN in 60 seconds"}
-              </p>
+          <div className="brutal-card bg-zinc-800 flex flex-col gap-6 p-8">
+            <h3 className="text-headline text-amber-400">
+              {phase === "queuing" ? "⏳ In Queue..." : "Start New Match"}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  GAME MODE
+                </label>
+                <select
+                  value={selectedGame}
+                  onChange={(e) => setSelectedGame(e.target.value)}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                >
+                  <option value="PREDICTION">🔮 Price Prediction</option>
+                  <option value="TRADE_DUEL">⚡ Trade Duel (Skill)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  ASSET
+                </label>
+                <div className="flex gap-2">
+                  {["ETH/USD", "BTC/USD", "SOL/USD"].map((asset) => (
+                    <button
+                      key={asset}
+                      onClick={() => setSelectedAsset(asset)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold border ${selectedAsset === asset ? "bg-white text-black border-white" : "bg-transparent text-gray-400 border-white/10 hover:border-white/30"}`}
+                    >
+                      {asset.split("/")[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">
+                  STAKE
+                </label>
+                <div className="flex gap-2">
+                  {[1, 10, 25, 50].map((amount) => (
+                    <button
+                      key={amount}
+                      onClick={() => setSelectedStake(amount)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold border ${selectedStake === amount ? "bg-green-500 text-black border-green-500" : "bg-transparent text-gray-400 border-white/10 hover:border-white/30"}`}
+                    >
+                      ${amount}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {phase === "queuing" ? (
-              <button
-                onClick={leaveQueue}
-                className="brutal-btn bg-rose-600 text-xl whitespace-nowrap"
-              >
-                ❌ Leave Queue
-              </button>
-            ) : (
-              <button
-                onClick={handleJoinDuel}
-                disabled={!wsConnected}
-                className="brutal-btn brutal-btn-primary text-xl whitespace-nowrap disabled:opacity-50"
-              >
-                ⚔️ Join Duel ($1)
-              </button>
-            )}
+            <div className="mt-4 flex justify-end">
+              {phase === "queuing" ? (
+                <button
+                  onClick={leaveQueue}
+                  className="brutal-btn bg-rose-600 text-xl whitespace-nowrap px-8"
+                >
+                  ❌ Leave Queue
+                </button>
+              ) : (
+                <button
+                  onClick={handleJoinDuel}
+                  disabled={!wsConnected}
+                  className="brutal-btn brutal-btn-primary text-xl whitespace-nowrap disabled:opacity-50 px-8 w-full md:w-auto"
+                >
+                  ⚔️ Find Match
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Server Status */}

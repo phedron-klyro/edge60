@@ -1,18 +1,32 @@
 /**
  * Edge60 Backend - Matchmaking Queue
  *
- * Simple FIFO queue for matching players with same stake amount
+ * FIFO queue for matching players.
+ * Matches players based on:
+ * 1. Stake Amount
+ * 2. Game Type (Prediction vs Trade Duel)
+ * 3. Asset (ETH/USD vs BTC/USD)
  */
 
-import { QueueEntry } from "../types/index.js";
+import { QueueEntry, GameType } from "../types/index.js";
 
 /**
  * Matchmaking Queue
- * Groups players by stake amount for fair matching
  */
 class MatchmakingQueueClass {
-  // Queue entries grouped by stake amount
-  private queues: Map<number, QueueEntry[]> = new Map();
+  // Queue entries grouped by a composite key string
+  private queues: Map<string, QueueEntry[]> = new Map();
+
+  /**
+   * Helper to generate a unique key for the queue
+   */
+  private getQueueKey(
+    stake: number,
+    gameType: GameType,
+    asset: string,
+  ): string {
+    return `${stake}:${gameType}:${asset}`;
+  }
 
   /**
    * Add player to queue
@@ -21,23 +35,28 @@ class MatchmakingQueueClass {
   add(
     playerId: string,
     stake: number,
+    gameType: GameType,
+    asset: string,
     walletAddress?: string,
     yellowSessionId?: string,
   ): number {
     const entry: QueueEntry = {
       playerId,
       stake,
+      gameType,
+      asset,
       joinedAt: Date.now(),
       walletAddress,
       yellowSessionId,
     };
 
-    const queue = this.queues.get(stake) || [];
+    const key = this.getQueueKey(stake, gameType, asset);
+    const queue = this.queues.get(key) || [];
     queue.push(entry);
-    this.queues.set(stake, queue);
+    this.queues.set(key, queue);
 
     console.log(
-      `[Queue] Player ${playerId} joined $${stake} queue. Position: ${queue.length}`,
+      `[Queue] Player ${playerId} joined queue [${key}]. Position: ${queue.length}`,
     );
     return queue.length;
   }
@@ -46,11 +65,11 @@ class MatchmakingQueueClass {
    * Remove player from queue
    */
   remove(playerId: string): boolean {
-    for (const [stake, queue] of this.queues.entries()) {
+    for (const [key, queue] of this.queues.entries()) {
       const index = queue.findIndex((e) => e.playerId === playerId);
       if (index !== -1) {
         queue.splice(index, 1);
-        console.log(`[Queue] Player ${playerId} left $${stake} queue`);
+        console.log(`[Queue] Player ${playerId} left queue [${key}]`);
         return true;
       }
     }
@@ -61,11 +80,18 @@ class MatchmakingQueueClass {
    * Try to find a match for a player
    * Returns the other player's entry if found, null otherwise
    */
-  findMatch(playerId: string, stake: number): QueueEntry | null {
-    const queue = this.queues.get(stake);
+  findMatch(
+    playerId: string,
+    stake: number,
+    gameType: GameType,
+    asset: string,
+  ): QueueEntry | null {
+    const key = this.getQueueKey(stake, gameType, asset);
+    const queue = this.queues.get(key);
+
     if (!queue || queue.length === 0) return null;
 
-    // Find another player (not self) in the same stake queue
+    // Find another player (not self) in the exact same queue
     const matchIndex = queue.findIndex((e) => e.playerId !== playerId);
     if (matchIndex === -1) return null;
 
@@ -79,7 +105,7 @@ class MatchmakingQueueClass {
     }
 
     console.log(
-      `[Queue] Match found: ${playerId} vs ${matched.playerId} for $${stake}`,
+      `[Queue] Match found in [${key}]: ${playerId} vs ${matched.playerId}`,
     );
     return matched;
   }
@@ -97,10 +123,11 @@ class MatchmakingQueueClass {
   }
 
   /**
-   * Get queue length for a stake amount
+   * Get queue length for a specific segment
    */
-  getQueueLength(stake: number): number {
-    return this.queues.get(stake)?.length || 0;
+  getQueueLength(stake: number, gameType: GameType, asset: string): number {
+    const key = this.getQueueKey(stake, gameType, asset);
+    return this.queues.get(key)?.length || 0;
   }
 
   /**

@@ -23,6 +23,7 @@ import { useAccount } from "wagmi";
 
 export type MatchStatus =
   | "WAITING"
+  | "PROPOSED"
   | "ACTIVE"
   | "COMPLETED"
   | "SETTLING"
@@ -53,16 +54,26 @@ export interface Match {
   playerB: string | null;
   stake: number;
   status: MatchStatus;
+  gameType: string;
+  asset: string;
   startTime: number | null;
   endTime: number | null;
   duration: number;
   winner: string | null;
   predictionA: Prediction | null;
   predictionB: Prediction | null;
-  asset: string;
   startPrice: number | null;
   endPrice: number | null;
+  matchData?: any; // Generic game state
   settlement?: SettlementInfo;
+}
+
+interface MatchProposalData {
+  matchId: string;
+  stake: number;
+  gameType: string;
+  asset: string;
+  expiresAt: number;
 }
 
 interface GameState {
@@ -76,6 +87,9 @@ interface GameState {
 
   // Match
   currentMatch: Match | null;
+  matchProposal: MatchProposalData | null;
+
+  // Game State (generic)
   myPrediction: Prediction | null;
 
   // Result
@@ -93,8 +107,10 @@ type GameAction =
   | { type: "SET_CONNECTED"; playerId: string }
   | { type: "SET_DISCONNECTED" }
   | { type: "SET_QUEUING"; position: number }
+  | { type: "SET_PROPOSAL"; proposal: MatchProposalData }
   | { type: "SET_MATCHED"; match: Match }
   | { type: "SET_PLAYING"; match: Match }
+  | { type: "UPDATE_GAME_STATE"; state: any }
   | { type: "SET_PREDICTION"; prediction: Prediction }
   | { type: "SET_RESULT"; match: Match }
   | { type: "SET_SETTLEMENT_STARTED" }
@@ -117,6 +133,7 @@ const initialState: GameState = {
   phase: "idle",
   queuePosition: 0,
   currentMatch: null,
+  matchProposal: null,
   myPrediction: null,
   isWinner: null,
   settlementStatus: null,
@@ -145,10 +162,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         error: null,
       };
 
+    case "SET_PROPOSAL":
+      return {
+        ...state,
+        phase: "matched", // Technically matched but proposing
+        matchProposal: action.proposal,
+      };
+
     case "SET_MATCHED":
       return {
         ...state,
         phase: "matched",
+        matchProposal: null, // Clear proposal as we are now matched? Or keep until active?
         currentMatch: action.match,
         error: null,
       };
@@ -157,8 +182,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         phase: "playing",
+        matchProposal: null, // Definitively clear proposal
         currentMatch: action.match,
         error: null,
+      };
+
+    case "UPDATE_GAME_STATE":
+      if (!state.currentMatch) return state;
+      return {
+        ...state,
+        currentMatch: {
+          ...state.currentMatch,
+          matchData: action.state,
+        },
       };
 
     case "SET_PREDICTION":
@@ -217,9 +253,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
 interface GameContextValue extends GameState {
   // Actions
-  joinQueue: (stake?: number) => void;
+  joinQueue: (stake: number, gameType: string, asset: string) => void;
   leaveQueue: () => void;
+  acceptMatch: (matchId: string) => void;
+  declineMatch: (matchId: string) => void;
   submitPrediction: (prediction: Prediction) => void;
+  sendGameAction: (action: string, payload?: any) => void;
   playAgain: () => void;
   yellow: YellowSession;
   // Settlement helpers
@@ -254,20 +293,60 @@ export function GameProvider({ children }: GameProviderProps) {
           dispatch({ type: "RESET" });
           break;
 
+        case "MATCH_PROPOSED":
+          dispatch({
+            type: "SET_PROPOSAL",
+            proposal: {
+              matchId: event.matchId,
+              stake: event.stake,
+              gameType: event.gameType,
+              asset: event.asset,
+              expiresAt: event.expiresAt,
+            },
+          });
+          break;
+
         case "MATCH_FOUND":
           dispatch({ type: "SET_MATCHED", match: event.match as Match });
           break;
 
         case "START_MATCH":
-          if (state.currentMatch) {
+          if (state.currentMatch || state.matchProposal) {
+            // If we had a proposal, we can construct initial match object from it + event data
+            // Or rely on the fact that Match object is synced via other means.
+            // Ideally MATCH_FOUND or START_MATCH payload contains full Match.
+            // The backend START_MATCH event currently sends limited data, but let's assume partial update is okay
+            // OR rely on previous data.
+
+            // Issue: We might not have 'currentMatch' if we went PROPOSED -> START directly without MATCH_FOUND full payload.
+            // Backend START_MATCH logic: sends full restart?
+            // Updated backend sends: matchId, startTime, startPrice.
+            // We need full match object. Backend should probably send full match on start.
+
+            // Temporary fix: we assume we know the context from proposal.
+            const baseMatch: any = state.currentMatch || {
+              id: event.matchId,
+              stake: state.matchProposal?.stake || 0,
+              gameType: state.matchProposal?.gameType || "PREDICTION",
+              asset: state.matchProposal?.asset || "ETH/USD",
+              playerA: state.playerId || "", // We don't know who is A or B yet fully if we missed MATCH_FOUND
+              playerB: null,
+              duration: 60,
+            };
+
             const updatedMatch = {
-              ...state.currentMatch,
+              ...baseMatch,
               startTime: event.startTime as number,
               startPrice: event.startPrice as number,
+              asset: event.asset || baseMatch.asset, // Ensure asset is present
               status: "ACTIVE" as MatchStatus,
             };
             dispatch({ type: "SET_PLAYING", match: updatedMatch });
           }
+          break;
+
+        case "GAME_STATE_UPDATE":
+          dispatch({ type: "UPDATE_GAME_STATE", state: event.state });
           break;
 
         case "PREDICTION_RECEIVED":
@@ -302,7 +381,7 @@ export function GameProvider({ children }: GameProviderProps) {
           break;
       }
     },
-    [state.currentMatch],
+    [state.currentMatch, state.matchProposal, state.playerId],
   );
 
   const handleConnect = useCallback((playerId: string) => {
@@ -323,7 +402,11 @@ export function GameProvider({ children }: GameProviderProps) {
 
   // Game actions
   const joinQueue = useCallback(
-    (stake: number = 1) => {
+    (
+      stake: number = 10,
+      gameType: string = "PREDICTION",
+      asset: string = "ETH/USD",
+    ) => {
       if (!yellow.isInitialised) {
         dispatch({ type: "SET_ERROR", error: "Yellow session not ready" });
         return;
@@ -341,6 +424,8 @@ export function GameProvider({ children }: GameProviderProps) {
       send({
         type: "JOIN_QUEUE",
         stake,
+        gameType,
+        asset,
         walletAddress: address,
         yellowSessionId: yellow.sessionId,
       });
@@ -353,6 +438,22 @@ export function GameProvider({ children }: GameProviderProps) {
     dispatch({ type: "RESET" });
   }, [send]);
 
+  const acceptMatch = useCallback(
+    (matchId: string) => {
+      send({ type: "ACCEPT_MATCH", matchId });
+      // Optimistically we wait for START_MATCH
+    },
+    [send],
+  );
+
+  const declineMatch = useCallback(
+    (matchId: string) => {
+      send({ type: "DECLINE_MATCH", matchId });
+      dispatch({ type: "RESET" });
+    },
+    [send],
+  );
+
   const submitPrediction = useCallback(
     (prediction: Prediction) => {
       if (state.currentMatch) {
@@ -362,6 +463,20 @@ export function GameProvider({ children }: GameProviderProps) {
           prediction,
         });
         dispatch({ type: "SET_PREDICTION", prediction });
+      }
+    },
+    [send, state.currentMatch],
+  );
+
+  const sendGameAction = useCallback(
+    (action: string, payload: any = {}) => {
+      if (state.currentMatch) {
+        send({
+          type: "GAME_ACTION",
+          matchId: state.currentMatch.id,
+          action,
+          payload,
+        });
       }
     },
     [send, state.currentMatch],
@@ -383,7 +498,10 @@ export function GameProvider({ children }: GameProviderProps) {
     isConnected,
     joinQueue,
     leaveQueue,
+    acceptMatch,
+    declineMatch,
     submitPrediction,
+    sendGameAction,
     playAgain,
     yellow,
     isSettling,

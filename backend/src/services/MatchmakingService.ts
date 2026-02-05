@@ -6,7 +6,7 @@
 
 import { MatchmakingQueue, PlayerStore } from "../stores/index.js";
 import { matchService } from "./MatchService.js";
-import type { Match } from "../types/index.js";
+import type { Match, GameType } from "../types/index.js";
 
 /**
  * Matchmaking Service
@@ -14,11 +14,12 @@ import type { Match } from "../types/index.js";
 export class MatchmakingService {
   /**
    * Add player to matchmaking queue and try to find a match
-   * Returns immediately with queue position, or triggers async match start
    */
   async joinQueue(
     playerId: string,
     stake: number,
+    gameType: GameType,
+    asset: string,
     walletAddress?: string,
     yellowSessionId?: string,
   ): Promise<{ position: number; match: Match | null }> {
@@ -34,23 +35,34 @@ export class MatchmakingService {
     // Check if player is already in queue
     if (MatchmakingQueue.isInQueue(playerId)) {
       console.log(`[Matchmaking] Player ${playerId} already in queue`);
-      return { position: MatchmakingQueue.getQueueLength(stake), match: null };
+      return {
+        position: MatchmakingQueue.getQueueLength(stake, gameType, asset),
+        match: null,
+      };
     }
 
     // Try to find a match first
-    const opponent = MatchmakingQueue.findMatch(playerId, stake);
+    const opponent = MatchmakingQueue.findMatch(
+      playerId,
+      stake,
+      gameType,
+      asset,
+    );
 
     if (opponent) {
-      // Found an opponent - create and start match immediately
-      const match = matchService.createMatch(opponent.playerId, stake);
+      // Found an opponent - create and PROPOSE match (not start immediately)
+      const match = matchService.createMatch(
+        opponent.playerId,
+        stake,
+        gameType,
+        asset,
+      );
 
-      // Async: fetch price and start match
-      const startedMatch = await matchService.joinMatch(match.id, playerId);
+      // Add Player B (current player) to the proposal
+      const proposedMatch = await matchService.proposeMatch(match.id, playerId);
 
-      if (startedMatch) {
-        // Notify both players
-        this.notifyMatchFound(startedMatch);
-        return { position: 0, match: startedMatch };
+      if (proposedMatch) {
+        return { position: 0, match: proposedMatch };
       }
     }
 
@@ -58,6 +70,8 @@ export class MatchmakingService {
     const position = MatchmakingQueue.add(
       playerId,
       stake,
+      gameType,
+      asset,
       walletAddress,
       yellowSessionId,
     );
@@ -79,53 +93,11 @@ export class MatchmakingService {
   }
 
   /**
-   * Notify both players that a match was found
-   */
-  private notifyMatchFound(match: Match): void {
-    const message = {
-      type: "MATCH_FOUND",
-      match,
-    };
-
-    // Notify Player A
-    PlayerStore.send(match.playerA, message);
-
-    // Notify Player B
-    if (match.playerB) {
-      PlayerStore.send(match.playerB, message);
-    }
-
-    // Also send START_MATCH event with real price data
-    const startMessage = {
-      type: "START_MATCH",
-      matchId: match.id,
-      startTime: match.startTime,
-      startPrice: match.startPrice,
-      asset: match.asset,
-      duration: match.duration,
-    };
-
-    PlayerStore.send(match.playerA, startMessage);
-    if (match.playerB) {
-      PlayerStore.send(match.playerB, startMessage);
-    }
-  }
-
-  /**
    * Get queue statistics
    */
-  getStats(): { totalInQueue: number; queuesByStake: Record<number, number> } {
-    // Common stake amounts (1 USDC fixed for now)
-    const stakes = [1, 10, 25, 50, 100];
-    const queuesByStake: Record<number, number> = {};
-
-    stakes.forEach((stake) => {
-      queuesByStake[stake] = MatchmakingQueue.getQueueLength(stake);
-    });
-
+  getStats(): { totalInQueue: number } {
     return {
       totalInQueue: MatchmakingQueue.totalPlayers(),
-      queuesByStake,
     };
   }
 }

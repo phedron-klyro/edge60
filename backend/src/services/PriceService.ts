@@ -1,11 +1,10 @@
 /**
  * Edge60 Backend - Price Service
- * 
- * Fetches real-time ETH/USD prices from CoinGecko API
- * Single source of truth for price data
+ *
+ * Fetches real-time prices (ETH, BTC, SOL) from CoinGecko API
  */
 
-// CoinGecko free API endpoint (no API key required)
+// CoinGecko free API endpoint
 const COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price";
 
 interface PriceData {
@@ -14,89 +13,114 @@ interface PriceData {
   source: string;
 }
 
+const ASSET_ID_MAP: Record<string, string> = {
+  "ETH/USD": "ethereum",
+  "BTC/USD": "bitcoin",
+  "SOL/USD": "solana",
+};
+
 /**
- * Price Service - fetches real ETH/USD prices
+ * Price Service - fetches real asset prices
  */
 class PriceServiceClass {
-  private lastPrice: PriceData | null = null;
-  private cacheMs = 5000; // 5 second cache to avoid rate limiting
+  // Cache per asset: asset -> PriceData
+  private cache: Map<string, PriceData> = new Map();
+  private cacheMs = 5000; // 5 second cache
 
   /**
-   * Fetch current ETH/USD price from CoinGecko
-   * Returns cached price if within cache window
+   * Fetch current price for an asset
    */
-  async getEthUsdPrice(): Promise<PriceData> {
-    // Check cache
-    if (this.lastPrice && Date.now() - this.lastPrice.timestamp < this.cacheMs) {
-      console.log(`[PriceService] Using cached price: $${this.lastPrice.price}`);
-      return this.lastPrice;
+  async getPrice(asset: string): Promise<PriceData> {
+    const assetId = ASSET_ID_MAP[asset];
+    if (!assetId) {
+      console.error(
+        `[PriceService] Unknown asset: ${asset}, defaulting to ETH`,
+      );
+      return this.getEthUsdPrice();
     }
 
+    // Check cache
+    const cached = this.cache.get(asset);
+    if (cached && Date.now() - cached.timestamp < this.cacheMs) {
+      console.log(`[PriceService] Using cached ${asset}: $${cached.price}`);
+      return cached;
+    }
+
+    return this.fetchFromApi(asset, assetId);
+  }
+
+  /**
+   * Legacy method support
+   */
+  async getEthUsdPrice(): Promise<PriceData> {
+    return this.getPrice("ETH/USD");
+  }
+
+  private async fetchFromApi(
+    asset: string,
+    assetId: string,
+  ): Promise<PriceData> {
     try {
-      console.log("[PriceService] Fetching ETH/USD price from CoinGecko...");
-      
-      const url = `${COINGECKO_API}?ids=ethereum&vs_currencies=usd`;
+      console.log(`[PriceService] Fetching ${asset} price from CoinGecko...`);
+
+      const url = `${COINGECKO_API}?ids=${assetId}&vs_currencies=usd`;
       const response = await fetch(url, {
-        headers: {
-          "Accept": "application/json",
-        },
+        headers: { Accept: "application/json" },
       });
 
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`CoinGecko API error: ${response.status}`);
-      }
 
-      const data = await response.json() as { ethereum?: { usd?: number } };
-      
-      if (!data.ethereum?.usd) {
-        throw new Error("Invalid response from CoinGecko");
-      }
+      const data = (await response.json()) as any;
+      const price = data[assetId]?.usd;
 
-      const price = data.ethereum.usd;
-      
-      this.lastPrice = {
+      if (!price) throw new Error("Invalid response from CoinGecko");
+
+      const priceData = {
         price,
         timestamp: Date.now(),
         source: "coingecko",
       };
 
-      console.log(`[PriceService] ✓ ETH/USD = $${price.toFixed(2)}`);
-      return this.lastPrice;
+      this.cache.set(asset, priceData);
+      console.log(`[PriceService] ✓ ${asset} = $${price.toFixed(2)}`);
 
+      return priceData;
     } catch (error) {
-      console.error("[PriceService] ✗ Failed to fetch price:", error);
-      
-      // Return last known price if available
-      if (this.lastPrice) {
-        console.log(`[PriceService] Using stale price: $${this.lastPrice.price}`);
-        return this.lastPrice;
+      console.error(`[PriceService] ✗ Failed to fetch ${asset}:`, error);
+
+      // Fallback to cache if available even if stale
+      const cached = this.cache.get(asset);
+      if (cached) {
+        console.log(`[PriceService] Using stale ${asset}: $${cached.price}`);
+        return cached;
       }
 
-      // Fallback mock price if no data available
-      const mockPrice: PriceData = {
-        price: 2450 + (Math.random() - 0.5) * 50,
+      // Mock fallback
+      const mockPrice = {
+        price:
+          (asset === "BTC/USD" ? 65000 : asset === "SOL/USD" ? 140 : 2500) +
+          (Math.random() - 0.5) * 50,
         timestamp: Date.now(),
         source: "mock",
       };
-      console.log(`[PriceService] Using mock price: $${mockPrice.price.toFixed(2)}`);
       return mockPrice;
     }
   }
 
   /**
    * Get a fresh price (bypass cache)
-   * Used for match end to ensure accurate comparison
    */
-  async getFreshPrice(): Promise<PriceData> {
-    this.lastPrice = null; // Clear cache
-    return this.getEthUsdPrice();
+  async getFreshPrice(asset: string = "ETH/USD"): Promise<PriceData> {
+    this.cache.delete(asset); // Clear cache
+    return this.getPrice(asset);
   }
 
   /**
    * Get the last cached price without fetching
    */
-  getLastPrice(): PriceData | null {
-    return this.lastPrice;
+  getLastPrice(asset: string = "ETH/USD"): PriceData | null {
+    return this.cache.get(asset) || null;
   }
 }
 
