@@ -12,7 +12,8 @@
     "verify:base-sepolia": "hardhat verify --network baseSepolia",
     "interact:base-sepolia": "hardhat run scripts/interact.js --network baseSepolia",
     "interact:arc-testnet": "hardhat run scripts/interact.js --network arcTestnet",
-    "fund": "hardhat run scripts/fund-treasury.js --network baseSepolia"
+    "fund": "hardhat run scripts/fund-treasury.js --network baseSepolia",
+    "fund:arc": "hardhat run scripts/fund-treasury.js --network arcTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

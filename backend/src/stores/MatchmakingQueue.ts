@@ -1,6 +1,6 @@
 /**
  * Edge60 Backend - Matchmaking Queue
- * 
+ *
  * Simple FIFO queue for matching players with same stake amount
  */
 
@@ -18,11 +18,17 @@ class MatchmakingQueueClass {
    * Add player to queue
    * Returns queue position
    */
-  add(playerId: string, stake: number, yellowSessionId?: string): number {
+  add(
+    playerId: string,
+    stake: number,
+    walletAddress?: string,
+    yellowSessionId?: string,
+  ): number {
     const entry: QueueEntry = {
       playerId,
       stake,
       joinedAt: Date.now(),
+      walletAddress,
       yellowSessionId,
     };
 
@@ -30,7 +36,9 @@ class MatchmakingQueueClass {
     queue.push(entry);
     this.queues.set(stake, queue);
 
-    console.log(`[Queue] Player ${playerId} joined $${stake} queue. Position: ${queue.length}`);
+    console.log(
+      `[Queue] Player ${playerId} joined $${stake} queue. Position: ${queue.length}`,
+    );
     return queue.length;
   }
 
@@ -63,14 +71,16 @@ class MatchmakingQueueClass {
 
     // Remove matched player from queue
     const [matched] = queue.splice(matchIndex, 1);
-    
+
     // Also remove the current player from queue
     const selfIndex = queue.findIndex((e) => e.playerId === playerId);
     if (selfIndex !== -1) {
       queue.splice(selfIndex, 1);
     }
 
-    console.log(`[Queue] Match found: ${playerId} vs ${matched.playerId} for $${stake}`);
+    console.log(
+      `[Queue] Match found: ${playerId} vs ${matched.playerId} for $${stake}`,
+    );
     return matched;
   }
 

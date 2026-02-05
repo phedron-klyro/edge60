@@ -1,5 +1,7 @@
 export { WalletConnectButton } from "./WalletConnectButton";
 export { ENSNameDisplay } from "./ENSNameDisplay";
+export { ENSProfileCard } from "./ENSProfileCard";
+export { LeaderboardTable } from "./LeaderboardTable";
 export { BalanceCard } from "./BalanceCard";
 export { CountdownTimer } from "./CountdownTimer";
 export { PredictionButtons } from "./PredictionButtons";

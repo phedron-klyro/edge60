@@ -50,11 +50,13 @@ const SUPPORTED_CHAINS = {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: {
       default: {
-        http: [process.env.ARC_TESTNET_RPC_URL || "https://rpc-testnet.arc.io"],
+        http: [
+          process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network",
+        ],
       },
     },
     blockExplorers: {
-      default: { name: "Arc Explorer", url: "https://testnet.explorer.arc.io" },
+      default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
     },
   },
 } as const;
@@ -68,7 +70,7 @@ const ACTIVE_CHAIN =
 const EXPLORER_URL =
   ACTIVE_CHAIN.id === 84532
     ? "https://sepolia.basescan.org"
-    : "https://testnet.explorer.arc.io";
+    : "https://testnet.arcscan.app";
 
 // ============================================
 // CONTRACT CONFIGURATION
@@ -190,7 +192,7 @@ class TreasuryServiceClass {
       }
     } else {
       console.log(
-        `\n⚠️  [TREASURY] No valid SETTLEMENT_PRIVATE_KEY configured`
+        `\n⚠️  [TREASURY] No valid SETTLEMENT_PRIVATE_KEY configured`,
       );
       console.log(`   Service will operate in READ-ONLY mode\n`);
     }
@@ -204,13 +206,13 @@ class TreasuryServiceClass {
    */
   private logInitialization(): void {
     console.log(
-      `\n╔══════════════════════════════════════════════════════════════╗`
+      `\n╔══════════════════════════════════════════════════════════════╗`,
     );
     console.log(
-      `║              EDGE60 TREASURY SERVICE                          ║`
+      `║              EDGE60 TREASURY SERVICE                          ║`,
     );
     console.log(
-      `╠══════════════════════════════════════════════════════════════╣`
+      `╠══════════════════════════════════════════════════════════════╣`,
     );
     console.log(`║ Network:      ${ACTIVE_CHAIN.name.padEnd(44)}║`);
     console.log(`║ Chain ID:     ${String(ACTIVE_CHAIN.id).padEnd(44)}║`);
@@ -220,16 +222,16 @@ class TreasuryServiceClass {
       `║ Settler:      ${
         this.account?.address.slice(0, 42).padEnd(44) ||
         "Not configured".padEnd(44)
-      }║`
+      }║`,
     );
     console.log(
       `║ Status:       ${(this.isConfigured
         ? "✓ READY"
         : "⚠ NOT CONFIGURED"
-      ).padEnd(44)}║`
+      ).padEnd(44)}║`,
     );
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
   }
 
@@ -250,7 +252,7 @@ class TreasuryServiceClass {
       console.log(`[Treasury] Synced rake: ${this.rakeBps / 100}%`);
     } catch (error) {
       console.warn(
-        "[Treasury] Could not sync rake from contract, using default"
+        "[Treasury] Could not sync rake from contract, using default",
       );
     }
   }
@@ -266,20 +268,20 @@ class TreasuryServiceClass {
   async settleMatch(
     winner: Address,
     grossAmount: number,
-    matchId: string
+    matchId: string,
   ): Promise<SettlementResult> {
     const matchIdNum = this.matchIdToNumber(matchId);
     const amountWei = parseUnits(grossAmount.toString(), 6); // USDC 6 decimals
 
     console.log(
-      `\n╔══════════════════ TREASURY SETTLEMENT ══════════════════════╗`
+      `\n╔══════════════════ TREASURY SETTLEMENT ══════════════════════╗`,
     );
     console.log(`║ Network:      ${ACTIVE_CHAIN.name}`);
     console.log(`║ Match ID:     ${matchId.slice(0, 8)}... → ${matchIdNum}`);
     console.log(`║ Winner:       ${winner}`);
     console.log(`║ Gross Amount: ${grossAmount} USDC`);
     console.log(
-      `╠══════════════════════════════════════════════════════════════╣`
+      `╠══════════════════════════════════════════════════════════════╣`,
     );
 
     // Check configuration
@@ -305,7 +307,7 @@ class TreasuryServiceClass {
 
       if (treasuryBalance < amountWei) {
         throw new Error(
-          `Insufficient treasury balance: ${treasuryBalanceFormatted} < ${grossAmount}`
+          `Insufficient treasury balance: ${treasuryBalanceFormatted} < ${grossAmount}`,
         );
       }
 
@@ -371,13 +373,13 @@ class TreasuryServiceClass {
       console.log(`║ 💸 [SETTLED ON-CHAIN]`);
       console.log(`║    Gross:     ${settlementData.grossAmount} USDC`);
       console.log(
-        `║    Rake:      ${settlementData.rake} USDC (${this.rakeBps / 100}%)`
+        `║    Rake:      ${settlementData.rake} USDC (${this.rakeBps / 100}%)`,
       );
       console.log(`║    Net:       ${settlementData.netPayout} USDC → Winner`);
       console.log(`║`);
       console.log(`║ 🔗 ${explorerUrl}`);
       console.log(
-        `╚══════════════════════════════════════════════════════════════╝\n`
+        `╚══════════════════════════════════════════════════════════════╝\n`,
       );
 
       return {
@@ -395,10 +397,10 @@ class TreasuryServiceClass {
       console.log(
         `║ ❌ [FAILED] ${errorMsg.slice(0, 50)}${
           errorMsg.length > 50 ? "..." : ""
-        }`
+        }`,
       );
       console.log(
-        `╚══════════════════════════════════════════════════════════════╝\n`
+        `╚══════════════════════════════════════════════════════════════╝\n`,
       );
 
       return {
@@ -414,7 +416,7 @@ class TreasuryServiceClass {
    */
   private parseSettlementEvent(
     receipt: TransactionReceipt,
-    expectedMatchId: number
+    expectedMatchId: number,
   ): { grossAmount: string; rake: string; netPayout: string } {
     for (const log of receipt.logs) {
       try {
@@ -466,17 +468,19 @@ class TreasuryServiceClass {
     const rake = (grossAmount * this.rakeBps) / 10000;
     const netPayout = grossAmount - rake;
 
-    console.log(`║ ⚠️  [NOT CONFIGURED] Cannot settle on-chain`);
-    console.log(`║    Configure SETTLEMENT_PRIVATE_KEY and TREASURY_ADDRESS`);
+    console.log(`║ ⚠️  [NOT CONFIGURED] Simulated settlement (Demo Mode)`);
+    console.log(
+      `║    Configure SETTLEMENT_PRIVATE_KEY and TREASURY_ADDRESS for real txs`,
+    );
     console.log(`║`);
-    console.log(`║ 📊 [CALCULATED VALUES]`);
+    console.log(`║ 📊 [SIMULATED VALUES]`);
     console.log(`║    Gross:   ${grossAmount} USDC`);
     console.log(
-      `║    Rake:    ${rake.toFixed(4)} USDC (${this.rakeBps / 100}%)`
+      `║    Rake:    ${rake.toFixed(4)} USDC (${this.rakeBps / 100}%)`,
     );
     console.log(`║    Net:     ${netPayout.toFixed(4)} USDC`);
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
 
     return {

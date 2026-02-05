@@ -18,7 +18,7 @@ module.exports = {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 84532,
-      gasPrice: 1000000000, // 1 gwei
+      // gasPrice: 1000000000, // 1 gwei
     },
     // Arc Mainnet
     arc: {
@@ -28,7 +28,7 @@ module.exports = {
     },
     // Arc Testnet
     arcTestnet: {
-      url: process.env.ARC_TESTNET_RPC_URL || "https://rpc-testnet.arc.io",
+      url: process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.network",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 5042002,
     },

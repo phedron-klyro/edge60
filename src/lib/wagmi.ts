@@ -9,9 +9,9 @@ import {
 import { http } from "wagmi";
 
 // Custom Arc chain configuration (placeholder)
-const arcChain = {
-  id: 10143, // Arc chain ID (placeholder)
-  name: "Arc",
+const arcTestnetChain = {
+  id: 5042002, // Arc chain ID (placeholder)
+  name: "Arc Testnet",
   nativeCurrency: {
     decimals: 18,
     name: "ETH",
@@ -19,11 +19,13 @@ const arcChain = {
   },
   rpcUrls: {
     default: {
-      http: [process.env.NEXT_PUBLIC_ARC_RPC_URL || "https://rpc.arc.dev"],
+      http: [
+        process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL || "https://rpc.arc.dev",
+      ],
     },
   },
   blockExplorers: {
-    default: { name: "Arc Explorer", url: "https://explorer.arc.dev" },
+    default: { name: "Arc Explorer", url: "https://testnet.arcscan.app" },
   },
   testnet: true,
 } as const;
@@ -31,20 +33,22 @@ const arcChain = {
 export const config = getDefaultConfig({
   appName: "Edge60",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
-  chains: [
-    mainnet,
-    base,
-    baseSepolia,
-    polygon,
-    polygonMumbai,
-    // arcChain, // Uncomment when Arc is ready
-  ],
+  chains: [mainnet, base, baseSepolia, polygon, polygonMumbai, arcTestnetChain],
   transports: {
-    [mainnet.id]: http(process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://cloudflare-eth.com"),
+    [mainnet.id]: http(
+      process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://cloudflare-eth.com",
+    ),
     [base.id]: http(),
-    [baseSepolia.id]: http(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://rpc.ankr.com/base_sepolia"),
+    [baseSepolia.id]: http(
+      process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL ||
+        "https://rpc.ankr.com/base_sepolia",
+    ),
     [polygon.id]: http(),
     [polygonMumbai.id]: http(),
+    [arcTestnetChain.id]: http(
+      process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL ||
+        "https://rpc.testnet.arc.network",
+    ),
   },
   ssr: true,
 });
@@ -56,10 +60,12 @@ export const USDC_ADDRESSES: Record<number, `0x${string}`> = {
   [baseSepolia.id]: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   [polygon.id]: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
   [polygonMumbai.id]: "0x0FA8781a83E46826621b3BC094Ea2A0212e71B23",
+  [arcTestnetChain.id]: "0x3600000000000000000000000000000000000000",
 };
 
 export const TREASURY_ADDRESSES: Record<number, `0x${string}`> = {
-  [baseSepolia.id]: "0x0000000000000000000000000000000000000000", // Deploy and update
+  [baseSepolia.id]: "0x0000000000000000000000000000000000000000",
+  [arcTestnetChain.id]: "0x27d1642370e4223490f01D30D07C742DAaFd6977",
 };
 
 export const YELLOW_SETTLEMENT_ADDRESSES: Record<number, `0x${string}`> = {

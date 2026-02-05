@@ -123,7 +123,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       };
 
       ws.onerror = (error) => {
-        console.error("[WS] Error:", error);
+        console.error("[WS] Connection Error:", {
+          url: WS_URL,
+          readyState: ws.readyState,
+          error
+        });
         setStatus("error");
       };
     } catch (error) {

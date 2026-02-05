@@ -1,6 +1,6 @@
 /**
  * Edge60 Backend - WebSocket Event Handlers
- * 
+ *
  * Handles all WebSocket message events from clients
  */
 
@@ -16,16 +16,16 @@ import { matchService, matchmakingService } from "../services/index.js";
 export function handleConnection(socket: WebSocket): string {
   // Generate a temporary player ID (in production, this would be the wallet address)
   const playerId = `player_${uuidv4().slice(0, 8)}`;
-  
+
   PlayerStore.add(playerId, socket);
-  
+
   // Send welcome message with assigned ID
   socket.send(
     JSON.stringify({
       type: "CONNECTED",
       playerId,
       message: "Welcome to Edge60! Ready to duel.",
-    })
+    }),
   );
 
   console.log(`\n🔌 [CONNECTED] ${playerId}`);
@@ -58,7 +58,10 @@ export function handleDisconnect(playerId: string): void {
 /**
  * Handle incoming WebSocket message
  */
-export async function handleMessage(playerId: string, data: string): Promise<void> {
+export async function handleMessage(
+  playerId: string,
+  data: string,
+): Promise<void> {
   let event: ClientEvent;
 
   try {
@@ -75,7 +78,12 @@ export async function handleMessage(playerId: string, data: string): Promise<voi
 
   switch (event.type) {
     case "JOIN_QUEUE":
-      await handleJoinQueue(playerId, event.stake, event.yellowSessionId);
+      await handleJoinQueue(
+        playerId,
+        event.stake,
+        event.walletAddress,
+        event.yellowSessionId,
+      );
       break;
 
     case "LEAVE_QUEUE":
@@ -101,10 +109,34 @@ export async function handleMessage(playerId: string, data: string): Promise<voi
 /**
  * Handle JOIN_QUEUE event
  */
-async function handleJoinQueue(playerId: string, stake: number, yellowSessionId?: string): Promise<void> {
-  // Associate session if provided
-  if (yellowSessionId) {
-    PlayerStore.setYellowSession(playerId, yellowSessionId);
+async function handleJoinQueue(
+  playerId: string,
+  stake: number,
+  walletAddress?: string,
+  yellowSessionId?: string,
+): Promise<void> {
+  let activePlayerId = playerId;
+
+  // Associate session and re-identify if wallet address is provided
+  // We prioritize the real wallet address over session ID
+  const newIdentity =
+    walletAddress ||
+    (yellowSessionId?.startsWith("0x") ? yellowSessionId : null);
+
+  if (newIdentity) {
+    const success = PlayerStore.rename(playerId, newIdentity);
+    if (success) {
+      activePlayerId = newIdentity;
+      // Send message to client about the ID change
+      PlayerStore.send(activePlayerId, {
+        type: "CONNECTED",
+        playerId: activePlayerId,
+        message: `Identity updated to ${walletAddress ? "wallet address" : "session address"}.`,
+      });
+    }
+    if (yellowSessionId) {
+      PlayerStore.setYellowSession(activePlayerId, yellowSessionId);
+    }
   }
 
   // Validate stake amount (1 USDC is the fixed stake for Edge60)
@@ -118,12 +150,19 @@ async function handleJoinQueue(playerId: string, stake: number, yellowSessionId?
   }
 
   // Async: may involve price fetching if match is found
-  const result = await matchmakingService.joinQueue(playerId, stake, yellowSessionId);
+  const result = await matchmakingService.joinQueue(
+    activePlayerId,
+    stake,
+    walletAddress,
+    yellowSessionId,
+  );
 
   if (result.match) {
-    console.log(`✓ [MATCHED] ${playerId} → Match ${result.match.id.slice(0, 8)}...`);
+    console.log(
+      `✓ [MATCHED] ${activePlayerId} → Match ${result.match.id.slice(0, 8)}...`,
+    );
   } else {
-    console.log(`⏳ [QUEUED] ${playerId} at position ${result.position}`);
+    console.log(`⏳ [QUEUED] ${activePlayerId} at position ${result.position}`);
   }
 }
 
@@ -149,7 +188,7 @@ function handleLeaveQueue(playerId: string): void {
 function handleSubmitPrediction(
   playerId: string,
   matchId: string,
-  prediction: Prediction
+  prediction: Prediction,
 ): void {
   // Validate prediction
   if (prediction !== "UP" && prediction !== "DOWN") {
@@ -170,7 +209,8 @@ function handleSubmitPrediction(
   } else {
     PlayerStore.send(playerId, {
       type: "ERROR",
-      message: "Could not submit prediction. Match may be invalid or not active.",
+      message:
+        "Could not submit prediction. Match may be invalid or not active.",
     });
   }
 }

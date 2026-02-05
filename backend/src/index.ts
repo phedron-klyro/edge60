@@ -10,6 +10,7 @@
 import "dotenv/config";
 import { setupServer } from "./server.js";
 import { matchService, TreasuryService } from "./services/index.js";
+import { connectDatabase, disconnectDatabase } from "./db/connection.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3002;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -29,12 +30,16 @@ async function main() {
     const shutdown = async () => {
       console.log("\n[Server] Shutting down...");
       matchService.cleanup();
+      await disconnectDatabase();
       await server.close();
       process.exit(0);
     };
 
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
+
+    // Connect to Database
+    await connectDatabase();
 
     // Start server
     await server.listen({ port: PORT, host: HOST });

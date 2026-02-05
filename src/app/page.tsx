@@ -45,7 +45,7 @@ export default function Home() {
               </p>
             </div>
             <div className="brutal-card text-center min-w-[150px]">
-              <p className="text-headline text-[var(--color-accent)]">$10</p>
+              <p className="text-headline text-[var(--color-accent)]">$1</p>
               <p className="text-sm uppercase tracking-wider text-[var(--color-text-muted)]">
                 Min Stake
               </p>

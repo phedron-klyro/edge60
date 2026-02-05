@@ -34,6 +34,7 @@ export enum MatchStatus {
  */
 export type SettlementStatus =
   | "pending" // Waiting to start
+  | "approving" // Waiting for approval
   | "submitting" // Tx being submitted
   | "confirming" // Waiting for confirmation
   | "confirmed" // Successfully settled on-chain
@@ -125,6 +126,7 @@ export type ClientEvent =
       type: "JOIN_QUEUE";
       playerId: string;
       stake: number;
+      walletAddress?: string;
       yellowSessionId?: string;
     }
   | { type: "SUBMIT_PREDICTION"; matchId: string; prediction: Prediction }
@@ -159,5 +161,6 @@ export interface QueueEntry {
   playerId: string;
   stake: number;
   joinedAt: number;
+  walletAddress?: string;
   yellowSessionId?: string;
 }

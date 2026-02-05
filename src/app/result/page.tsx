@@ -9,6 +9,7 @@ export default function Result() {
   const router = useRouter();
   const {
     currentMatch,
+    playerId,
     isWinner,
     playAgain,
     phase,
@@ -61,12 +62,13 @@ export default function Result() {
         <div className="max-w-2xl w-full text-center space-y-8">
           {/* Result Card */}
           <div
-            className={`brutal-card p-12 ${isWin
+            className={`brutal-card p-12 ${
+              isWin
                 ? "border-green-500 shadow-[6px_6px_0_0_#22c55e]"
                 : isDraw
                   ? "border-zinc-500 shadow-[6px_6px_0_0_#71717a]"
                   : "border-rose-500 shadow-[6px_6px_0_0_#f43f5e]"
-              }`}
+            }`}
           >
             {/* Emoji */}
             <div className="text-8xl mb-6">
@@ -75,12 +77,13 @@ export default function Result() {
 
             {/* Result Text */}
             <h2
-              className={`text-display ${isWin
+              className={`text-display ${
+                isWin
                   ? "text-green-500"
                   : isDraw
                     ? "text-zinc-400"
                     : "text-rose-500"
-                }`}
+              }`}
             >
               {isWin ? "YOU WIN!" : isDraw ? "IT'S A DRAW" : "YOU LOSE"}
             </h2>
@@ -91,12 +94,13 @@ export default function Result() {
                 {isWin ? "You Won" : isDraw ? "Stake Returned" : "You Lost"}
               </p>
               <p
-                className={`text-headline ${isWin
+                className={`text-headline ${
+                  isWin
                     ? "text-green-500"
                     : isDraw
                       ? "text-zinc-400"
                       : "text-rose-500"
-                  }`}
+                }`}
               >
                 {isWin
                   ? `+$${currentMatch?.stake ? currentMatch.stake * 2 : 0}`
@@ -139,6 +143,56 @@ export default function Result() {
                     </p>
                   </div>
                 </div>
+
+                {/* Predictions Comparison */}
+                <div className="mt-8 grid grid-cols-2 gap-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+                  <div className="text-center">
+                    <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+                      Your Prediction
+                    </p>
+                    <p
+                      className={`text-headline ${
+                        (currentMatch.playerA === playerId
+                          ? currentMatch.predictionA
+                          : currentMatch.predictionB) === "UP"
+                          ? "text-green-500"
+                          : "text-rose-500"
+                      }`}
+                    >
+                      {(currentMatch.playerA === playerId
+                        ? currentMatch.predictionA
+                        : currentMatch.predictionB) === "UP"
+                        ? "▲ UP"
+                        : "▼ DOWN"}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+                      Opponent Prediction
+                    </p>
+                    <p
+                      className={`text-headline ${
+                        (currentMatch.playerA === playerId
+                          ? currentMatch.predictionB
+                          : currentMatch.predictionA) === "UP"
+                          ? "text-green-500"
+                          : "text-rose-500"
+                      }`}
+                    >
+                      {(
+                        currentMatch.playerA === playerId
+                          ? currentMatch.predictionB
+                          : currentMatch.predictionA
+                      )
+                        ? (currentMatch.playerA === playerId
+                            ? currentMatch.predictionB
+                            : currentMatch.predictionA) === "UP"
+                          ? "▲ UP"
+                          : "▼ DOWN"
+                        : "No Prediction"}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -154,15 +208,20 @@ export default function Result() {
                   <>
                     <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     <span className="text-indigo-400">
-                      {settlementStatus === "pending" && "Preparing settlement..."}
-                      {settlementStatus === "submitting" && "Submitting to Arc..."}
-                      {settlementStatus === "confirming" && "Waiting for confirmation..."}
+                      {settlementStatus === "pending" &&
+                        "Preparing settlement..."}
+                      {settlementStatus === "submitting" &&
+                        "Submitting to Arc..."}
+                      {settlementStatus === "confirming" &&
+                        "Waiting for confirmation..."}
                     </span>
                   </>
                 ) : isSettled ? (
                   <>
                     <span className="text-2xl">✓</span>
-                    <span className="text-green-500 font-bold">Settled on Arc</span>
+                    <span className="text-green-500 font-bold">
+                      Settled on Arc
+                    </span>
                   </>
                 ) : settlementStatus === "failed" ? (
                   <>
@@ -181,15 +240,25 @@ export default function Result() {
                     <>
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Prize Pool</span>
-                        <span className="text-white font-mono">${settlement.grossAmount} USDC</span>
+                        <span className="text-white font-mono">
+                          ${settlement.grossAmount} USDC
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Platform Fee (2.5%)</span>
-                        <span className="text-zinc-500 font-mono">-${settlement.rake} USDC</span>
+                        <span className="text-zinc-400">
+                          Platform Fee (2.5%)
+                        </span>
+                        <span className="text-zinc-500 font-mono">
+                          -${settlement.rake} USDC
+                        </span>
                       </div>
                       <div className="flex justify-between border-t border-zinc-700 pt-2">
-                        <span className="text-green-400 font-bold">Your Payout</span>
-                        <span className="text-green-400 font-mono font-bold">${settlement.netPayout} USDC</span>
+                        <span className="text-green-400 font-bold">
+                          Your Payout
+                        </span>
+                        <span className="text-green-400 font-mono font-bold">
+                          ${settlement.netPayout} USDC
+                        </span>
                       </div>
                     </>
                   )}
@@ -197,7 +266,10 @@ export default function Result() {
                   {settlement.txHash && (
                     <div className="pt-2 border-t border-zinc-700">
                       <a
-                        href={settlement.explorerUrl || `https://testnet.explorer.arc.io/tx/${settlement.txHash}`}
+                        href={
+                          settlement.explorerUrl ||
+                          `https://testnet.explorer.arc.io/tx/${settlement.txHash}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center gap-1"

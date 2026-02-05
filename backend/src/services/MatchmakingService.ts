@@ -1,6 +1,6 @@
 /**
  * Edge60 Backend - Matchmaking Service
- * 
+ *
  * Handles queue management and player matching
  */
 
@@ -16,11 +16,18 @@ export class MatchmakingService {
    * Add player to matchmaking queue and try to find a match
    * Returns immediately with queue position, or triggers async match start
    */
-  async joinQueue(playerId: string, stake: number, yellowSessionId?: string): Promise<{ position: number; match: Match | null }> {
+  async joinQueue(
+    playerId: string,
+    stake: number,
+    walletAddress?: string,
+    yellowSessionId?: string,
+  ): Promise<{ position: number; match: Match | null }> {
     // Check if player is already in a match
     const existingMatch = PlayerStore.get(playerId)?.currentMatchId;
     if (existingMatch) {
-      console.log(`[Matchmaking] Player ${playerId} already in match ${existingMatch}`);
+      console.log(
+        `[Matchmaking] Player ${playerId} already in match ${existingMatch}`,
+      );
       return { position: 0, match: null };
     }
 
@@ -36,7 +43,7 @@ export class MatchmakingService {
     if (opponent) {
       // Found an opponent - create and start match immediately
       const match = matchService.createMatch(opponent.playerId, stake);
-      
+
       // Async: fetch price and start match
       const startedMatch = await matchService.joinMatch(match.id, playerId);
 
@@ -48,8 +55,13 @@ export class MatchmakingService {
     }
 
     // No match found - add to queue
-    const position = MatchmakingQueue.add(playerId, stake, yellowSessionId);
-    
+    const position = MatchmakingQueue.add(
+      playerId,
+      stake,
+      walletAddress,
+      yellowSessionId,
+    );
+
     // Notify player they're in queue
     PlayerStore.send(playerId, {
       type: "QUEUE_JOINED",

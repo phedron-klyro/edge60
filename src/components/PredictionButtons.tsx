@@ -18,6 +18,7 @@ export function PredictionButtons({
   locked = false,
 }: PredictionButtonsProps) {
   const [prediction, setPrediction] = useState<Prediction>(selected);
+  const [confirming, setConfirming] = useState<Prediction>(null);
 
   // Use parent's selected value if provided (controlled mode)
   const currentPrediction = selected ?? prediction;
@@ -27,8 +28,16 @@ export function PredictionButtons({
 
   const handlePredict = (value: "UP" | "DOWN") => {
     if (disabled || isLocked) return;
-    setPrediction(value);
-    onPredict?.(value);
+
+    if (confirming === value) {
+      // Second click - confirm and submit
+      setPrediction(value);
+      setConfirming(null);
+      onPredict?.(value);
+    } else {
+      // First click - ask for confirmation
+      setConfirming(value);
+    }
   };
 
   const isDisabledOrLocked = disabled || isLocked;
@@ -44,9 +53,10 @@ export function PredictionButtons({
           text-headline
           border-4 border-black
           transition-all duration-100
-          ${currentPrediction === "UP"
-            ? "bg-[var(--color-up)] text-black shadow-[6px_6px_0_0_var(--color-up)] translate-x-[-2px] translate-y-[-2px]"
-            : "bg-[var(--color-surface)] text-[var(--color-up)] shadow-[6px_6px_0_0_var(--color-up)]"
+          ${
+            currentPrediction === "UP"
+              ? "bg-[var(--color-up)] text-black shadow-[6px_6px_0_0_var(--color-up)] translate-x-[-2px] translate-y-[-2px]"
+              : "bg-[var(--color-surface)] text-[var(--color-up)] shadow-[6px_6px_0_0_var(--color-up)]"
           }
           ${isDisabledOrLocked ? "opacity-50 cursor-not-allowed" : "hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0_0_var(--color-up)]"}
           active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_var(--color-up)]
@@ -54,7 +64,7 @@ export function PredictionButtons({
       >
         <div className="flex flex-col items-center gap-2">
           <span className="text-4xl">▲</span>
-          <span>UP</span>
+          <span>{confirming === "UP" ? "CONFIRM UP?" : "UP"}</span>
         </div>
       </button>
 
@@ -67,9 +77,10 @@ export function PredictionButtons({
           text-headline
           border-4 border-black
           transition-all duration-100
-          ${currentPrediction === "DOWN"
-            ? "bg-[var(--color-down)] text-white shadow-[6px_6px_0_0_var(--color-down)] translate-x-[-2px] translate-y-[-2px]"
-            : "bg-[var(--color-surface)] text-[var(--color-down)] shadow-[6px_6px_0_0_var(--color-down)]"
+          ${
+            currentPrediction === "DOWN"
+              ? "bg-[var(--color-down)] text-white shadow-[6px_6px_0_0_var(--color-down)] translate-x-[-2px] translate-y-[-2px]"
+              : "bg-[var(--color-surface)] text-[var(--color-down)] shadow-[6px_6px_0_0_var(--color-down)]"
           }
           ${isDisabledOrLocked ? "opacity-50 cursor-not-allowed" : "hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0_0_var(--color-down)]"}
           active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_0_var(--color-down)]
@@ -77,7 +88,7 @@ export function PredictionButtons({
       >
         <div className="flex flex-col items-center gap-2">
           <span className="text-4xl">▼</span>
-          <span>DOWN</span>
+          <span>{confirming === "DOWN" ? "CONFIRM DOWN?" : "DOWN"}</span>
         </div>
       </button>
     </div>

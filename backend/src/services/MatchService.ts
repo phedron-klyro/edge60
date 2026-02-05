@@ -17,6 +17,7 @@ import {
 import { MatchStore, PlayerStore } from "../stores/index.js";
 import { PriceService } from "./PriceService.js";
 import { TreasuryService } from "./TreasuryService.js";
+import { dbService } from "./DatabaseService.js";
 import { Address } from "viem";
 
 // ============================================
@@ -60,13 +61,13 @@ export class MatchService {
     PlayerStore.setMatch(playerA, match.id);
 
     console.log(
-      `\n╔══════════════════════════════════════════════════════════════╗`
+      `\n╔══════════════════════════════════════════════════════════════╗`,
     );
     console.log(`║ [MATCH CREATED] ID: ${match.id.slice(0, 8)}...`);
     console.log(`║ Player A: ${playerA}`);
     console.log(`║ Stake: $${match.stake} USDC | Duration: ${match.duration}s`);
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
 
     return match;
@@ -81,17 +82,17 @@ export class MatchService {
     const match = MatchStore.get(matchId);
     if (!match || match.status !== MatchStatus.WAITING) {
       console.log(
-        `[MatchService] ✗ Cannot join match ${matchId} - invalid state`
+        `[MatchService] ✗ Cannot join match ${matchId} - invalid state`,
       );
       return null;
     }
 
     console.log(
-      `\n╔══════════════════════════════════════════════════════════════╗`
+      `\n╔══════════════════════════════════════════════════════════════╗`,
     );
     console.log(`║ [MATCH STARTING] ID: ${matchId.slice(0, 8)}...`);
     console.log(
-      `╠══════════════════════════════════════════════════════════════╣`
+      `╠══════════════════════════════════════════════════════════════╣`,
     );
 
     // ============================================
@@ -103,7 +104,7 @@ export class MatchService {
     const startTime = Date.now();
 
     console.log(
-      `║ ✓ T₀ Price: $${startPrice.toFixed(2)} (source: ${priceData.source})`
+      `║ ✓ T₀ Price: $${startPrice.toFixed(2)} (source: ${priceData.source})`,
     );
     console.log(`║ ✓ Start Time: ${new Date(startTime).toISOString()}`);
     console.log(`║ ✓ Player A: ${match.playerA}`);
@@ -119,16 +120,16 @@ export class MatchService {
     console.log(
       `║    Player A ${
         sessionA ? `(Session: ${sessionA.slice(0, 10)}...)` : "(No Session)"
-      }: $${match.stake} USDC`
+      }: $${match.stake} USDC`,
     );
     console.log(
       `║    Player B ${
         sessionB ? `(Session: ${sessionB.slice(0, 10)}...)` : "(No Session)"
-      }: $${match.stake} USDC`
+      }: $${match.stake} USDC`,
     );
     console.log(`║    Total Escrow: $${match.stake * 2} USDC [OFF-CHAIN]`);
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
 
     const updated = MatchStore.update(matchId, {
@@ -152,12 +153,12 @@ export class MatchService {
   submitPrediction(
     matchId: string,
     playerId: string,
-    prediction: Prediction
+    prediction: Prediction,
   ): boolean {
     const match = MatchStore.get(matchId);
     if (!match || match.status !== MatchStatus.ACTIVE) {
       console.log(
-        `[MatchService] ✗ Cannot submit prediction - match not active`
+        `[MatchService] ✗ Cannot submit prediction - match not active`,
       );
       return false;
     }
@@ -177,13 +178,34 @@ export class MatchService {
     }
 
     MatchStore.update(matchId, updates);
+    const updatedMatch = MatchStore.get(matchId);
 
-    console.log(
-      `║ [PREDICTION] Player ${playerLabel} (${playerId.slice(
-        0,
-        12
-      )}...) → ${prediction}`
-    );
+    if (updatedMatch) {
+      console.log(
+        `║ [PREDICTION] Player ${playerLabel} (${playerId.slice(
+          0,
+          12,
+        )}...) → ${prediction}`,
+      );
+
+      // Notify the OTHER player that this player has predicted
+      const opponentId =
+        updatedMatch.playerA === playerId
+          ? updatedMatch.playerB
+          : updatedMatch.playerA;
+
+      if (opponentId) {
+        PlayerStore.send(opponentId, {
+          type: "MATCH_UPDATE",
+          match: {
+            ...updatedMatch,
+            // SECURITY: Predictions are now public during ACTIVE phase as requested for UX
+            predictionA: updatedMatch.predictionA,
+            predictionB: updatedMatch.predictionB,
+          } as any,
+        });
+      }
+    }
 
     return true;
   }
@@ -198,10 +220,10 @@ export class MatchService {
     console.log(
       `\n⏱️  [TIMER STARTED] Match ${matchId.slice(0, 8)}... (${
         match.duration
-      }s)`
+      }s)`,
     );
     console.log(
-      `   Players have ${match.duration} seconds to submit predictions...\n`
+      `   Players have ${match.duration} seconds to submit predictions...\n`,
     );
 
     const timer = setTimeout(async () => {
@@ -226,11 +248,11 @@ export class MatchService {
     this.clearTimer(matchId);
 
     console.log(
-      `\n╔══════════════════════════════════════════════════════════════╗`
+      `\n╔══════════════════════════════════════════════════════════════╗`,
     );
     console.log(`║ [MATCH ENDING] ID: ${matchId.slice(0, 8)}...`);
     console.log(
-      `╠══════════════════════════════════════════════════════════════╣`
+      `╠══════════════════════════════════════════════════════════════╣`,
     );
 
     // ============================================
@@ -274,8 +296,8 @@ export class MatchService {
     console.log(`║ ═══════════ PRICE ANALYSIS ═══════════`);
     console.log(
       `║ Change: ${priceDiff >= 0 ? "+" : ""}$${priceDiff.toFixed(
-        2
-      )} (${priceChangePercent}%)`
+        2,
+      )} (${priceChangePercent}%)`,
     );
     console.log(`║ Movement: ${actualMovement}`);
     console.log(`║`);
@@ -346,7 +368,7 @@ export class MatchService {
       console.log(`║ Stakes returned to both players`);
     }
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
 
     // ============================================
@@ -361,6 +383,8 @@ export class MatchService {
 
     if (updated) {
       this.notifyMatchResult(updated);
+      // Persist to DB asynchronously
+      dbService.saveMatch(updated);
     }
 
     return updated || null;
@@ -395,12 +419,12 @@ export class MatchService {
     });
 
     console.log(
-      `\n╔═══════════════════ ON-CHAIN SETTLEMENT ═══════════════════╗`
+      `\n╔═══════════════════ ON-CHAIN SETTLEMENT ═══════════════════╗`,
     );
     console.log(`║ Match: ${matchId.slice(0, 8)}...`);
     console.log(`║ Status: COMPLETING → SETTLING`);
     console.log(
-      `╠══════════════════════════════════════════════════════════════╣`
+      `╠══════════════════════════════════════════════════════════════╣`,
     );
 
     let settlement: SettlementInfo;
@@ -410,12 +434,11 @@ export class MatchService {
     // ============================================
     if (match.winner) {
       // Winner exists - settle on-chain
-      const winnerSession = PlayerStore.get(match.winner)?.yellowSessionId;
-      const winnerAddress = (winnerSession || match.winner) as Address;
+      // We use match.winner directly as it's now prioritized to be the wallet address
+      const winnerAddress = match.winner as Address;
       const prizePool = match.stake * 2; // Total pot
 
       console.log(`║ Winner: ${match.winner}`);
-      console.log(`║ Session: ${winnerSession || "N/A"}`);
       console.log(`║ Prize Pool: $${prizePool} USDC`);
       console.log(`║`);
       console.log(`║ 🔗 Calling Arc Treasury...`);
@@ -424,7 +447,7 @@ export class MatchService {
       const result = await TreasuryService.settleMatch(
         winnerAddress,
         prizePool,
-        matchId
+        matchId,
       );
 
       settlement = {
@@ -495,10 +518,26 @@ export class MatchService {
       }
     }
 
+    if (updated) {
+      // Persist to DB
+      await dbService.saveMatch(updated);
+
+      // Update player stats
+      const isWinnerA = match.winner === match.playerA;
+      const isWinnerB = match.winner === match.playerB;
+
+      await Promise.all([
+        dbService.updatePlayerStats(match.playerA, isWinnerA, match.stake),
+        match.playerB
+          ? dbService.updatePlayerStats(match.playerB, isWinnerB, match.stake)
+          : Promise.resolve(),
+      ]);
+    }
+
     console.log(`║`);
     console.log(`║ ✓ Match ${matchId.slice(0, 8)}... → SETTLED`);
     console.log(
-      `╚══════════════════════════════════════════════════════════════╝\n`
+      `╚══════════════════════════════════════════════════════════════╝\n`,
     );
 
     return updated || null;

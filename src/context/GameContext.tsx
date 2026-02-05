@@ -15,15 +15,26 @@ import React, {
 } from "react";
 import { useWebSocket, ServerEvent } from "../hooks/useWebSocket";
 import { useYellowSession, YellowSession } from "../hooks/useYellowSession";
+import { useAccount } from "wagmi";
 
 // ============================================
 // TYPES
 // ============================================
 
-export type MatchStatus = "WAITING" | "ACTIVE" | "COMPLETED" | "SETTLING" | "SETTLED";
+export type MatchStatus =
+  | "WAITING"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "SETTLING"
+  | "SETTLED";
 export type Prediction = "UP" | "DOWN";
 export type GamePhase = "idle" | "queuing" | "matched" | "playing" | "result";
-export type SettlementStatus = "pending" | "submitting" | "confirming" | "confirmed" | "failed";
+export type SettlementStatus =
+  | "pending"
+  | "submitting"
+  | "confirming"
+  | "confirmed"
+  | "failed";
 
 export interface SettlementInfo {
   status: SettlementStatus;
@@ -87,7 +98,11 @@ type GameAction =
   | { type: "SET_PREDICTION"; prediction: Prediction }
   | { type: "SET_RESULT"; match: Match }
   | { type: "SET_SETTLEMENT_STARTED" }
-  | { type: "SET_SETTLEMENT_COMPLETE"; match: Match; settlement: SettlementInfo }
+  | {
+      type: "SET_SETTLEMENT_COMPLETE";
+      match: Match;
+      settlement: SettlementInfo;
+    }
   | { type: "SET_SETTLEMENT_FAILED"; error: string }
   | { type: "SET_ERROR"; error: string }
   | { type: "RESET" };
@@ -224,6 +239,7 @@ interface GameProviderProps {
 
 export function GameProvider({ children }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { address } = useAccount();
   const yellow = useYellowSession();
 
   // Handle WebSocket events
@@ -325,10 +341,11 @@ export function GameProvider({ children }: GameProviderProps) {
       send({
         type: "JOIN_QUEUE",
         stake,
+        walletAddress: address,
         yellowSessionId: yellow.sessionId,
       });
     },
-    [send, yellow],
+    [send, yellow, address],
   );
 
   const leaveQueue = useCallback(() => {
@@ -355,7 +372,8 @@ export function GameProvider({ children }: GameProviderProps) {
   }, []);
 
   // Settlement status helpers
-  const isSettling = state.settlementStatus === "pending" ||
+  const isSettling =
+    state.settlementStatus === "pending" ||
     state.settlementStatus === "submitting" ||
     state.settlementStatus === "confirming";
   const isSettled = state.settlementStatus === "confirmed";

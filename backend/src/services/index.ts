@@ -9,3 +9,4 @@ export {
   type SettlementResult,
   type SettlementStatus,
 } from "./TreasuryService.js";
+export { dbService, DatabaseService } from "./DatabaseService.js";

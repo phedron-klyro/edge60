@@ -20,7 +20,7 @@ async function main() {
   const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS;
   const USDC_ADDRESS =
     process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-  const AMOUNT = process.env.AMOUNT || "100"; // Default 100 USDC
+  const AMOUNT = process.env.AMOUNT || "10"; // Default 100 USDC
 
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
@@ -48,7 +48,7 @@ async function main() {
   const usdc = await hre.ethers.getContractAt("IERC20", USDC_ADDRESS);
   const treasury = await hre.ethers.getContractAt(
     "EdgeTreasury",
-    TREASURY_ADDRESS
+    TREASURY_ADDRESS,
   );
 
   // Check balances
@@ -69,15 +69,21 @@ async function main() {
     return;
   }
 
+  // Get current nonce
+  let nonce = await signer.getNonce("pending");
+  console.log(`   Starting Nonce: ${nonce}`);
+
   // Approve USDC
   console.log(`\n📝 Approving ${AMOUNT} USDC...`);
-  const approveTx = await usdc.approve(TREASURY_ADDRESS, amountWei);
+  const approveTx = await usdc.approve(TREASURY_ADDRESS, amountWei, {
+    nonce: nonce++,
+  });
   await approveTx.wait();
   console.log(`   Tx: ${approveTx.hash}`);
 
   // Deposit
   console.log(`\n💰 Depositing ${AMOUNT} USDC to treasury...`);
-  const depositTx = await treasury.deposit(amountWei);
+  const depositTx = await treasury.deposit(amountWei, { nonce: nonce++ });
   await depositTx.wait();
   console.log(`   Tx: ${depositTx.hash}`);
 
@@ -85,7 +91,10 @@ async function main() {
   const newTreasuryBalance = await usdc.balanceOf(TREASURY_ADDRESS);
   console.log(`\n✅ Deposit complete!`);
   console.log(
-    `   Treasury balance: ${hre.ethers.formatUnits(newTreasuryBalance, 6)} USDC`
+    `   Treasury balance: ${hre.ethers.formatUnits(
+      newTreasuryBalance,
+      6,
+    )} USDC`,
   );
 
   // Get stats
@@ -94,7 +103,7 @@ async function main() {
   console.log(`\n📊 Treasury Stats:`);
   console.log(`   Total Matches:  ${totalMatches}`);
   console.log(
-    `   Total Volume:   ${hre.ethers.formatUnits(totalVolume, 6)} USDC`
+    `   Total Volume:   ${hre.ethers.formatUnits(totalVolume, 6)} USDC`,
   );
   console.log(`   Protocol Rev:   ${hre.ethers.formatUnits(revenue, 6)} USDC`);
   console.log(`   Balance:        ${hre.ethers.formatUnits(balance, 6)} USDC`);

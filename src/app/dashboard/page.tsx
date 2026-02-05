@@ -6,11 +6,13 @@ import { useEffect } from "react";
 import {
   WalletConnectButton,
   ENSNameDisplay,
+  ENSProfileCard,
   BalanceCard,
   YellowSessionCard,
 } from "@/components";
+import { useAccount, useBalance } from "wagmi";
 import { useGame } from "@/context/GameContext";
-import { mockUser } from "@/lib/mock-data";
+import { useState } from "react";
 
 // Connection status indicator component
 const ConnectionStatus = ({ connected }: { connected: boolean }) => (
@@ -26,6 +28,7 @@ const ConnectionStatus = ({ connected }: { connected: boolean }) => (
 
 export default function Dashboard() {
   const router = useRouter();
+  const { address } = useAccount();
   const {
     isConnected: wsConnected,
     phase,
@@ -35,8 +38,28 @@ export default function Dashboard() {
     yellow,
   } = useGame();
 
-  // Use mock data for demo
-  const balance = mockUser.usdcBalance;
+  // Fetch real USDC balance
+  const { data: balanceData } = useBalance({
+    address,
+    token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+    chainId: 84532,
+  });
+
+  const balance = balanceData ? parseFloat(balanceData.formatted) : 0;
+
+  // Real contract stats
+  const [stats, setStats] = useState<{
+    totalMatches: number;
+    totalVolume: string;
+    protocolRevenue: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:3002/api/contract-stats")
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch((err) => console.error("Failed to fetch stats:", err));
+  }, []);
 
   // Redirect to duel page when match is found
   useEffect(() => {
@@ -74,17 +97,27 @@ export default function Dashboard() {
       <main className="flex-1 p-8 overflow-hidden">
         <div className="max-w-7xl mx-auto space-y-12">
           {/* Welcome Section */}
-          <div className="space-y-2">
-            <h2 className="text-headline">
-              Welcome back,{" "}
-              <span className="text-indigo-500">
-                <ENSNameDisplay />
-              </span>
-            </h2>
-            <p className="text-body text-zinc-400">
-              Ready to predict the market?
-            </p>
+          <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+            <div className="space-y-2">
+              <h2 className="text-headline">
+                Welcome back,{" "}
+                <span className="text-indigo-500">
+                  <ENSNameDisplay />
+                </span>
+              </h2>
+              <p className="text-body text-zinc-400">
+                Ready to predict the market?
+              </p>
+            </div>
+            <Link href="/leaderboard">
+              <button className="brutal-btn text-sm bg-indigo-600 border-white flex items-center gap-2">
+                🏆 GLOBAL LEADERBOARD
+              </button>
+            </Link>
           </div>
+
+          {/* Profile Section */}
+          <ENSProfileCard />
 
           {/* Dashboard Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
@@ -98,24 +131,43 @@ export default function Dashboard() {
               <YellowSessionCard yellow={yellow} />
             </div>
 
-            {/* Quick Stats */}
-            <div className="brutal-card h-full flex flex-col justify-between min-w-0">
+            {/* Protocol Stats Card */}
+            <div className="brutal-card h-full flex flex-col justify-between min-w-0 bg-linear-to-br from-zinc-800 to-indigo-950/30">
               <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-                Your Stats
+                Protocol Stats
               </p>
               <div className="space-y-4 mt-4 flex-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Wins</span>
-                  <span className="text-title text-indigo-500">12</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Losses</span>
-                  <span className="text-title text-rose-500">5</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-400">Win Rate</span>
-                  <span className="text-title text-amber-400">71%</span>
-                </div>
+                {stats ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-zinc-500">Total Volume</p>
+                      <p className="text-title text-amber-400">
+                        ${stats.totalVolume} USDC
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-zinc-500">Matches Settled</p>
+                      <p className="text-title text-indigo-400">
+                        {stats.totalMatches}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-zinc-500">Protocol Revenue</p>
+                      <p className="text-title text-green-500">
+                        ${stats.protocolRevenue} USDC
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-zinc-500 animate-pulse">
+                    Loading live contract data...
+                  </p>
+                )}
+                <Link href="/leaderboard" className="block mt-6">
+                  <button className="w-full brutal-btn brutal-btn-primary py-2 text-sm">
+                    VIEW RANKINGS
+                  </button>
+                </Link>
               </div>
             </div>
 

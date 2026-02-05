@@ -105,14 +105,17 @@ export default function Duel() {
               <div className="text-title text-indigo-500 truncate px-2">
                 <ENSNameDisplay
                   address={playerId as `0x${string}` | undefined}
+                  showAvatar
+                  avatarSize={48}
                 />
               </div>
               {myActualPrediction && (
                 <p
-                  className={`text-headline mt-4 ${myActualPrediction === "UP"
+                  className={`text-headline mt-4 ${
+                    myActualPrediction === "UP"
                       ? "text-green-500"
                       : "text-rose-500"
-                    }`}
+                  }`}
                 >
                   {myActualPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
                 </p>
@@ -131,24 +134,30 @@ export default function Duel() {
               </p>
               <div className="text-title text-rose-500 truncate px-2">
                 {opponentId ? (
-                  <ENSNameDisplay address={opponentId as `0x${string}`} />
+                  <ENSNameDisplay
+                    address={opponentId as `0x${string}`}
+                    showAvatar
+                    avatarSize={48}
+                  />
                 ) : (
                   "Waiting..."
                 )}
               </div>
-              <p className="text-headline mt-4 text-zinc-500">
+              <p className="text-headline mt-4">
                 {opponentPrediction ? (
                   <span
                     className={
                       opponentPrediction === "UP"
-                        ? "text-green-900"
-                        : "text-rose-900"
+                        ? "text-green-500"
+                        : "text-rose-500"
                     }
                   >
                     {opponentPrediction === "UP" ? "▲ UP" : "▼ DOWN"}
                   </span>
                 ) : (
-                  "🔒 Hidden"
+                  <span className="text-zinc-500 animate-pulse">
+                    🔒 Waiting...
+                  </span>
                 )}
               </p>
             </div>
