@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   WalletConnectButton,
   ENSNameDisplay,
@@ -66,11 +66,11 @@ export default function Dashboard() {
   const [showVersus, setShowVersus] = useState(false);
   const { currentMatch } = useGame();
 
-  // Redirect to duel page after versus animation
-  const handleVersusComplete = () => {
+  // Redirect to duel page after versus animation (stable ref so animation timer isn't reset on re-renders)
+  const handleVersusComplete = useCallback(() => {
     setShowVersus(false);
     router.push("/duel");
-  };
+  }, [router]);
 
   // Trigger versus animation when matched
   useEffect(() => {

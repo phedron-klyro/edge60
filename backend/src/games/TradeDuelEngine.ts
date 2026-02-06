@@ -34,6 +34,7 @@ interface TradeDuelResults {
 
 interface TradeDuelData {
   startPrice: number;
+  currentPrice: number; // Live authoritative price (simulated random walk)
   endPrice: number | null;
   initialBalance: number;
   playerAState: PlayerState;
@@ -42,6 +43,7 @@ interface TradeDuelData {
 }
 
 const INITIAL_BALANCE = 10000; // $10,000 Virtual Cash
+const PRICE_VOLATILITY = 0.002; // 0.2% max change per tick (~2s) - enough for visible movement in 60s
 
 export class TradeDuelEngine implements IGameEngine {
   /**
@@ -63,6 +65,7 @@ export class TradeDuelEngine implements IGameEngine {
       startPrice,
       matchData: {
         startPrice,
+        currentPrice: startPrice, // Initialize live price to start price
         endPrice: null,
         initialBalance: INITIAL_BALANCE,
         playerAState: JSON.parse(JSON.stringify(initialState)),
@@ -91,8 +94,8 @@ export class TradeDuelEngine implements IGameEngine {
     else if (match.playerB === playerId) state = data.playerBState;
     else return false;
 
-    const currentPrice =
-      PriceService.getLastPrice(match.asset)?.price || data.startPrice;
+    // Use the authoritative simulated price (same price displayed to players)
+    const currentPrice = data.currentPrice || data.startPrice;
 
     // Simple Logic:
     // BUY -> Close Short if exists, Open Long
@@ -204,11 +207,20 @@ export class TradeDuelEngine implements IGameEngine {
   }
 
   /**
-   * Periodic PnL updates could be sent here
+   * Called every ~2s during active match.
+   * Simulates realistic price movement and broadcasts updated state.
    */
   async onUpdate(match: Match): Promise<Partial<Match>> {
-    // We could calculate unrealized PnL here to broadcast
-    return {};
+    const data = match.matchData as TradeDuelData;
+
+    // Simulate realistic price movement (random walk around current price)
+    const lastPrice = data.currentPrice || data.startPrice;
+    const change = (Math.random() - 0.5) * PRICE_VOLATILITY;
+    data.currentPrice = lastPrice * (1 + change);
+
+    return {
+      matchData: data,
+    };
   }
 
   /**
@@ -217,7 +229,8 @@ export class TradeDuelEngine implements IGameEngine {
    */
   async onComplete(match: Match): Promise<Partial<Match>> {
     const data = match.matchData as TradeDuelData;
-    const endPrice = (await PriceService.getFreshPrice(match.asset)).price;
+    // Use the last simulated price as the end price (consistent with what players saw)
+    const endPrice = data.currentPrice || data.startPrice;
     data.endPrice = endPrice;
 
     // Close all positions at end price

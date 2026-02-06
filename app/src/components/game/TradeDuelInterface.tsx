@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { PriceChart } from "./PriceChart";
 
 const formatCurrency = (value: number) => {
@@ -33,35 +33,34 @@ export function TradeDuelInterface({
     return isMePlayerA ? matchData?.playerBState : matchData?.playerAState;
   }, [matchData, isMePlayerA]);
 
-  // Current Price (from last trade or start price)
-  const [localPrice, setLocalPrice] = useState(matchData?.startPrice || 0);
-  const [history, setHistory] = useState(() =>
+  // Use the authoritative price from backend (updated every ~2s via GAME_STATE_UPDATE)
+  const currentPrice: number =
+    matchData?.currentPrice || matchData?.startPrice || 0;
+
+  // Build chart history from backend price updates
+  const [history, setHistory] = useState<
+    Array<{ time: number; value: number }>
+  >(() =>
     matchData?.startPrice
       ? [{ time: Math.floor(Date.now() / 1000), value: matchData.startPrice }]
       : [],
   );
 
+  // Track last price to detect real changes from backend
+  const lastPriceRef = useRef<number>(currentPrice);
+
   useEffect(() => {
-    // Simulate price ticker for better UI feel (random walk around start price)
-    const interval = setInterval(() => {
-      setLocalPrice((p: number) => {
-        const nextPrice = p * (1 + (Math.random() - 0.5) * 0.001);
-        const now = Math.floor(Date.now() / 1000);
+    if (!currentPrice || currentPrice === lastPriceRef.current) return;
+    lastPriceRef.current = currentPrice;
 
-        setHistory((prev) => {
-          const last = prev[prev.length - 1];
-          // Ensure time is increasing for lightweight-charts
-          if (last && last.time >= now) {
-            return prev;
-          }
-          return [...prev, { time: now, value: nextPrice }].slice(-100);
-        });
-
-        return nextPrice;
-      });
-    }, 2000); // 2 seconds for a cleaner chart update
-    return () => clearInterval(interval);
-  }, []);
+    const now = Math.floor(Date.now() / 1000);
+    setHistory((prev) => {
+      const last = prev[prev.length - 1];
+      // Ensure time is strictly increasing for lightweight-charts
+      if (last && last.time >= now) return prev;
+      return [...prev, { time: now, value: currentPrice }].slice(-100);
+    });
+  }, [currentPrice]);
 
   const handleBuy = () => {
     onAction("GAME_ACTION", { action: "BUY" });
@@ -71,18 +70,19 @@ export function TradeDuelInterface({
     onAction("GAME_ACTION", { action: "SELL" });
   };
 
-  // Calculate PnL locally for display
+  // Calculate PnL using the real backend price
   const calculateEquity = (state: any) => {
     if (!state) return 0;
     let equity = state.virtualBalance;
     if (state.position) {
       const { entryPrice, size, side } = state.position;
       if (side === "LONG") {
-        equity = size * localPrice;
+        // Long equity = current value of holdings
+        equity = size * currentPrice;
       } else {
         // Short PnL = (Entry - Current) * Size
         // Equity = Collateral + PnL
-        const pnl = (entryPrice - localPrice) * size;
+        const pnl = (entryPrice - currentPrice) * size;
         const collateral = size * entryPrice;
         equity = collateral + pnl;
       }
@@ -137,7 +137,7 @@ export function TradeDuelInterface({
             {asset}
           </div>
           <div className="text-5xl font-mono font-bold text-white tracking-tighter drop-shadow-[0_0_10px_rgba(0,0,0,1)]">
-            {formatCurrency(localPrice)}
+            {formatCurrency(currentPrice)}
           </div>
 
           {/* Position Info */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 
 interface VersusAnimationProps {
@@ -23,18 +23,23 @@ export function VersusAnimation({
   onComplete,
 }: VersusAnimationProps) {
   const [phase, setPhase] = useState<"intro" | "vs" | "outro">("intro");
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
+  // Run timers once on mount so parent re-renders (e.g. from WS updates) don't reset the animation
   useEffect(() => {
     const timer1 = setTimeout(() => setPhase("vs"), 1000);
     const timer2 = setTimeout(() => setPhase("outro"), 2500);
-    const timer3 = setTimeout(onComplete, 3500);
+    const timer3 = setTimeout(() => {
+      onCompleteRef.current();
+    }, 3500);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
     };
-  }, [onComplete]);
+  }, []);
 
   const isTradeDuel = gameType === "TRADE_DUEL";
   const bgImage = isTradeDuel

@@ -36,6 +36,7 @@ export class MatchService {
   // Track active timers for cleanup
   private activeTimers: Map<string, NodeJS.Timeout> = new Map();
   private proposalTimers: Map<string, NodeJS.Timeout> = new Map();
+  private priceUpdateTimers: Map<string, NodeJS.Timeout> = new Map();
 
   // Registry of Game Engines
   private engines: Record<GameType, IGameEngine> = {
@@ -261,6 +262,11 @@ export class MatchService {
 
     // 5. Start Timer
     this.startMatchTimer(matchId);
+
+    // 6. Start periodic price updates for Trade Duel (simulated price feed)
+    if (updated.gameType === "TRADE_DUEL") {
+      this.startPriceUpdates(matchId);
+    }
   }
 
   /**
@@ -278,6 +284,8 @@ export class MatchService {
     this.activeTimers.clear();
     this.proposalTimers.forEach((timer) => clearTimeout(timer));
     this.proposalTimers.clear();
+    this.priceUpdateTimers.forEach((timer) => clearInterval(timer));
+    this.priceUpdateTimers.clear();
   }
 
   /**
@@ -367,6 +375,63 @@ export class MatchService {
   }
 
   /**
+   * Start periodic price updates for Trade Duel matches.
+   * Calls engine.onUpdate() every 2 seconds to simulate price movement
+   * and broadcasts updated state to both players.
+   */
+  private startPriceUpdates(matchId: string): void {
+    const PRICE_UPDATE_INTERVAL = 2000; // 2 seconds
+
+    const interval = setInterval(async () => {
+      const match = MatchStore.get(matchId);
+      if (!match || match.status !== MatchStatus.ACTIVE) {
+        this.clearPriceUpdates(matchId);
+        return;
+      }
+
+      const engine = this.getEngine(match.gameType);
+      const updateData = await engine.onUpdate(match);
+
+      if (updateData.matchData) {
+        const updated = MatchStore.update(matchId, {
+          matchData: updateData.matchData,
+        });
+
+        if (updated) {
+          const players = [match.playerA, match.playerB].filter(
+            Boolean,
+          ) as string[];
+          PlayerStore.broadcast(players, {
+            type: "GAME_STATE_UPDATE",
+            matchId,
+            state: updated.matchData,
+            prices: {
+              startPrice: updated.startPrice,
+              endPrice: updated.endPrice,
+            },
+          });
+        }
+      }
+    }, PRICE_UPDATE_INTERVAL);
+
+    this.priceUpdateTimers.set(matchId, interval);
+    console.log(
+      `[MatchService] Started price updates for match ${matchId} (every ${PRICE_UPDATE_INTERVAL}ms)`,
+    );
+  }
+
+  /**
+   * Stop periodic price updates for a match
+   */
+  private clearPriceUpdates(matchId: string): void {
+    const timer = this.priceUpdateTimers.get(matchId);
+    if (timer) {
+      clearInterval(timer);
+      this.priceUpdateTimers.delete(matchId);
+    }
+  }
+
+  /**
    * Complete the match
    * Calls GameEngine.onComplete()
    */
@@ -375,6 +440,7 @@ export class MatchService {
     if (!match || match.status !== MatchStatus.ACTIVE) return null;
 
     this.clearTimer(matchId);
+    this.clearPriceUpdates(matchId);
 
     console.log(`[MatchService] completing match ${matchId}`);
 
@@ -555,6 +621,7 @@ export class MatchService {
     if (!match) return;
 
     this.clearTimer(matchId);
+    this.clearPriceUpdates(matchId);
     if (this.proposalTimers.has(matchId)) {
       clearTimeout(this.proposalTimers.get(matchId)!);
       this.proposalTimers.delete(matchId);
