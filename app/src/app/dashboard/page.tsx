@@ -56,7 +56,7 @@ export default function Dashboard() {
   } | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:3002/api/contract-stats")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contract-stats`)
       .then((res) => res.json())
       .then((data) => setStats(data))
       .catch((err) => console.error("Failed to fetch stats:", err));
@@ -362,7 +362,7 @@ export default function Dashboard() {
                 <p className="font-bold">Game Server</p>
                 <p className="text-sm text-zinc-400">
                   {wsConnected
-                    ? "Connected to ws://localhost:3002"
+                    ? `Connected to ${process.env.NEXT_PUBLIC_WS_URL}`
                     : "Connecting..."}
                 </p>
               </div>

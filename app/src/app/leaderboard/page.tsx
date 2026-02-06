@@ -9,7 +9,7 @@ export default function Leaderboard() {
   const { data: contractStats } = useQuery({
     queryKey: ["contract-stats"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:3002/api/contract-stats");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contract-stats`);
       if (!res.ok) throw new Error("Failed to fetch contract stats");
       return await res.json();
     },
@@ -19,7 +19,7 @@ export default function Leaderboard() {
   const { data: serverStats } = useQuery({
     queryKey: ["server-stats"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:3002/stats");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats`);
       if (!res.ok) throw new Error("Failed to fetch server stats");
       return await res.json();
     },

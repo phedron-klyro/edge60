@@ -17,7 +17,7 @@ export function RecentDuels({ address }: { address?: string }) {
     queryFn: async () => {
       if (!address) return [];
       const res = await fetch(
-        `http://localhost:3002/api/player/${address}/history`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/player/${address}/history`,
       );
       if (!res.ok) throw new Error("Failed to fetch history");
       return await res.json();

@@ -59,7 +59,7 @@ export function useENSProfile(address?: `0x${string}`) {
     queryFn: async () => {
       if (!address) return null;
       try {
-        const res = await fetch(`http://localhost:3002/api/player/${address}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/player/${address}`);
         if (!res.ok) return null;
         return await res.json();
       } catch {
