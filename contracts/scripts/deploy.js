@@ -116,7 +116,11 @@ async function main() {
   const explorerUrl =
     networkName === "baseSepolia"
       ? `https://sepolia.basescan.org/address/${treasuryAddress}`
-      : `https://testnet.explorer.arc.io/address/${treasuryAddress}`;
+      : networkName === "arcTestnet"
+        ? `https://testnet.arcscan.app/address/${treasuryAddress}`
+        : networkName === "arc"
+          ? `https://arcscan.io/address/${treasuryAddress}`
+          : `https://sepolia.basescan.org/address/${treasuryAddress}`;
 
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗

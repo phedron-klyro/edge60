@@ -43,6 +43,9 @@ module.exports = {
       arc: process.env.ARCSCAN_API_KEY || "",
       arcTestnet: process.env.ARCSCAN_API_KEY || "",
     },
+    sourcify: {
+      enabled: false,
+    },
     customChains: [
       {
         network: "baseSepolia",
@@ -64,10 +67,13 @@ module.exports = {
         network: "arcTestnet",
         chainId: 5042002,
         urls: {
-          apiURL: "https://testnet.explorer.arc.io/api",
-          browserURL: "https://testnet.explorer.arc.io",
+          apiURL: "https://testnet.arcscan.app/api",
+          browserURL: "https://testnet.arcscan.app",
         },
       },
     ],
+  },
+  blockscout: {
+    apiKey: process.env.BLOCKSCOUT_API_KEY || "",
   },
 };
