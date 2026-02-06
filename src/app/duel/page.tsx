@@ -11,7 +11,9 @@ import {
   MatchStatusBanner,
 } from "@/components";
 import { TradeDuelInterface } from "@/components/game/TradeDuelInterface";
+import { PriceChart } from "@/components/game/PriceChart";
 import { useGame } from "@/context/GameContext";
+import { useState } from "react";
 
 export default function Duel() {
   const router = useRouter();
@@ -29,6 +31,39 @@ export default function Duel() {
       submitPrediction(value);
     }
   };
+
+  // State for PriceChart in Prediction Duel
+  const [localPrice, setLocalPrice] = useState(currentMatch?.startPrice || 0);
+  const [history, setHistory] = useState(() =>
+    currentMatch?.startPrice
+      ? [
+          {
+            time: Math.floor(Date.now() / 1000),
+            value: currentMatch.startPrice,
+          },
+        ]
+      : [],
+  );
+
+  // Local price simulation and history for Prediction Duel
+  useEffect(() => {
+    if (!currentMatch || currentMatch.gameType === "TRADE_DUEL") return; // Only run for Prediction Duel
+
+    const interval = setInterval(() => {
+      setLocalPrice((p) => {
+        const nextPrice = p * (1 + (Math.random() - 0.5) * 0.001);
+        const now = Math.floor(Date.now() / 1000);
+        setHistory((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.time >= now) return prev;
+          return [...prev, { time: now, value: nextPrice }].slice(-100);
+        });
+        return nextPrice;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [currentMatch?.gameType, currentMatch?.startPrice]);
 
   // Redirect if no active match
   useEffect(() => {
@@ -198,21 +233,35 @@ export default function Duel() {
               </div>
 
               {/* Asset & Price */}
-              <div className="brutal-card text-center">
-                <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-                  {currentMatch.asset}
-                </p>
-                <p className="text-display text-mono">
-                  {currentMatch.startPrice
-                    ? `$${currentMatch.startPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : "Fetching Price..."}
-                </p>
-                <p className="text-sm text-zinc-500 mt-2">
-                  Entry Price @{" "}
-                  {currentMatch.startTime
-                    ? new Date(currentMatch.startTime).toLocaleTimeString()
-                    : "Pending"}
-                </p>
+              <div className="brutal-card p-0 overflow-hidden min-h-[300px] relative">
+                {/* Price Chart Background */}
+                <div className="absolute inset-0 z-0">
+                  <PriceChart
+                    data={history}
+                    colors={{
+                      lineColor: "#facc15",
+                      areaTopColor: "rgba(250, 204, 21, 0.4)",
+                      areaBottomColor: "rgba(0, 0, 0, 0)",
+                    }}
+                  />
+                </div>
+
+                <div className="relative z-10 p-6 text-center">
+                  <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
+                    {currentMatch.asset}
+                  </p>
+                  <p className="text-display text-mono drop-shadow-[0_0_10px_rgba(0,0,0,1)]">
+                    {localPrice
+                      ? `$${localPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : "Fetching Price..."}
+                  </p>
+                  <p className="text-sm text-zinc-500 mt-2">
+                    Entry Price @{" "}
+                    {currentMatch.startTime
+                      ? new Date(currentMatch.startTime).toLocaleTimeString()
+                      : "Pending"}
+                  </p>
+                </div>
               </div>
 
               {/* Stake Info */}

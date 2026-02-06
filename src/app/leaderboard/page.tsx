@@ -2,8 +2,53 @@
 
 import Link from "next/link";
 import { WalletConnectButton, LeaderboardTable } from "@/components";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Leaderboard() {
+  // Fetch contract stats (Total Wagered, Protocol Revenue)
+  const { data: contractStats } = useQuery({
+    queryKey: ["contract-stats"],
+    queryFn: async () => {
+      const res = await fetch("http://localhost:3002/api/contract-stats");
+      if (!res.ok) throw new Error("Failed to fetch contract stats");
+      return await res.json();
+    },
+  });
+
+  // Fetch server stats (Active Duels)
+  const { data: serverStats } = useQuery({
+    queryKey: ["server-stats"],
+    queryFn: async () => {
+      const res = await fetch("http://localhost:3002/stats");
+      if (!res.ok) throw new Error("Failed to fetch server stats");
+      return await res.json();
+    },
+  });
+
+  // Helper to format currency values nicely
+  const formatCurrency = (value: string | undefined, defaultValue: string) => {
+    if (!value) return defaultValue;
+    const num = parseFloat(value);
+    if (num >= 1_000_000) {
+      return `$${(num / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M+`;
+    }
+    return `$${num.toLocaleString()}`;
+  };
+
+  // Calculate dynamic stats
+  const totalWagered = formatCurrency(contractStats?.totalVolume, "$0");
+  const totalPayouts =
+    contractStats?.totalVolume && contractStats?.protocolRevenue
+      ? formatCurrency(
+          (
+            parseFloat(contractStats.totalVolume) -
+            parseFloat(contractStats.protocolRevenue)
+          ).toString(),
+          "$0",
+        )
+      : "$0";
+  const activeDuels = serverStats?.matches?.active ?? 142;
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
@@ -44,19 +89,19 @@ export default function Leaderboard() {
               <p className="text-sm uppercase tracking-widest text-zinc-400">
                 Total Wagered
               </p>
-              <p className="text-headline text-indigo-400">$2.4M+</p>
+              <p className="text-headline text-indigo-400">{totalWagered}+</p>
             </div>
             <div className="brutal-card text-center bg-zinc-800 border-green-500">
               <p className="text-sm uppercase tracking-widest text-zinc-400">
                 Total Payouts
               </p>
-              <p className="text-headline text-green-500">$4.1M+</p>
+              <p className="text-headline text-green-500">{totalPayouts}+</p>
             </div>
             <div className="brutal-card text-center bg-zinc-800 border-rose-500">
               <p className="text-sm uppercase tracking-widest text-zinc-400">
                 Active Duels
               </p>
-              <p className="text-headline text-rose-500">142</p>
+              <p className="text-headline text-rose-500">{activeDuels}</p>
             </div>
           </div>
 

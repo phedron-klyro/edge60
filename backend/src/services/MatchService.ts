@@ -26,7 +26,7 @@ import { TradeDuelEngine } from "../games/TradeDuelEngine.js";
 // ============================================
 
 const DEFAULT_DURATION = 60; // seconds
-const CONFIRMATION_TIMEOUT = 10000; // 10 seconds to accept match
+const CONFIRMATION_TIMEOUT = 30000; // 30 seconds to accept match
 
 /**
  * Match Service - handles all match logic
@@ -314,7 +314,10 @@ export class MatchService {
       }
 
       // Sync prices if they exist in matchData
-      if (matchData?.startPrice !== undefined && matchData.startPrice !== null) {
+      if (
+        matchData?.startPrice !== undefined &&
+        matchData.startPrice !== null
+      ) {
         syncedFields.startPrice = matchData.startPrice;
       }
       if (matchData?.endPrice !== undefined && matchData.endPrice !== null) {
@@ -325,17 +328,10 @@ export class MatchService {
       const updated = MatchStore.update(matchId, syncedFields);
 
       if (updated) {
-        // Create a comprehensive state update that includes both matchData and synced fields
-        const stateUpdate = {
-          matchData: updated.matchData,
-          predictionA: updated.predictionA,
-          predictionB: updated.predictionB,
-          startPrice: updated.startPrice,
-          endPrice: updated.endPrice,
-        };
-
         // Broadcast new state to BOTH players simultaneously for consistent state
-        const players = [match.playerA, match.playerB].filter(Boolean) as string[];
+        const players = [match.playerA, match.playerB].filter(
+          Boolean,
+        ) as string[];
         PlayerStore.broadcast(players, {
           type: "GAME_STATE_UPDATE",
           matchId,
@@ -440,8 +436,10 @@ export class MatchService {
       };
     } else {
       // Draw - return stakes to both players
-      console.log(`[MatchService] Settling DRAW - returning stakes to both players`);
-      
+      console.log(
+        `[MatchService] Settling DRAW - returning stakes to both players`,
+      );
+
       // Refund Player A
       const playerAAddress = match.playerA as Address;
       const playerAResult = await TreasuryService.refundStake(
@@ -449,9 +447,11 @@ export class MatchService {
         match.stake, // Return their original stake
         matchId + "-A-refund",
       );
-      
+
       // Refund Player B
-      let playerBResult: { status: string; error?: string } = { status: "confirmed" };
+      let playerBResult: { status: string; error?: string } = {
+        status: "confirmed",
+      };
       if (match.playerB) {
         const playerBAddress = match.playerB as Address;
         const refundB = await TreasuryService.refundStake(
@@ -460,15 +460,19 @@ export class MatchService {
           matchId + "-B-refund",
         );
         playerBResult = { status: refundB.status, error: refundB.error };
-        
-        console.log(`[MatchService] Draw refunds: A=${playerAResult.status}, B=${playerBResult.status}`);
+
+        console.log(
+          `[MatchService] Draw refunds: A=${playerAResult.status}, B=${playerBResult.status}`,
+        );
       }
-      
+
       // For draws, settlement shows stake returned to each player
       settlement = {
-        status: playerAResult.status === "confirmed" && playerBResult.status === "confirmed" 
-          ? "confirmed" 
-          : "failed",
+        status:
+          playerAResult.status === "confirmed" &&
+          playerBResult.status === "confirmed"
+            ? "confirmed"
+            : "failed",
         txHash: playerAResult.txHash,
         grossAmount: String(match.stake),
         rake: playerAResult.rake || "0",
@@ -487,6 +491,44 @@ export class MatchService {
       // Release players
       PlayerStore.setMatch(match.playerA, null);
       if (match.playerB) PlayerStore.setMatch(match.playerB, null);
+
+      // ============================================
+      // PERSIST PLAYER STATS
+      // ============================================
+      if (settlement.status === "confirmed") {
+        try {
+          // Update Winner stats
+          if (match.winner) {
+            const winner = match.winner;
+            const loser =
+              match.playerA === winner ? match.playerB : match.playerA;
+
+            // Update Winner
+            await dbService.updatePlayerStats(winner, true, match.stake);
+
+            // Update Loser
+            if (loser) {
+              await dbService.updatePlayerStats(loser, false, match.stake);
+            }
+          } else {
+            // Draw - both get +1 duelPlayed and volume
+            await dbService.updatePlayerStats(
+              match.playerA,
+              false,
+              match.stake,
+            );
+            if (match.playerB) {
+              await dbService.updatePlayerStats(
+                match.playerB,
+                false,
+                match.stake,
+              );
+            }
+          }
+        } catch (error) {
+          console.error("[MatchService] Failed to update player stats:", error);
+        }
+      }
 
       const msgType =
         settlement.status === "confirmed"

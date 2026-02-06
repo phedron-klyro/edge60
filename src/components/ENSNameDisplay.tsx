@@ -19,12 +19,12 @@ export function ENSNameDisplay({
 
   const { data: ensName, isLoading: nameLoading } = useEnsName({
     address: targetAddress,
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   const { data: ensAvatar, isLoading: avatarLoading } = useEnsAvatar({
     name: ensName || undefined,
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   if (!targetAddress) {

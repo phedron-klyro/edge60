@@ -1,5 +1,5 @@
-import { useEnsName, useEnsAvatar, useEnsText } from "wagmi";
-import { mainnet } from "wagmi/chains";
+import { useEnsName, useEnsAvatar, useEnsText, useAccount } from "wagmi";
+import { mainnet, sepolia } from "wagmi/chains";
 import { useQuery } from "@tanstack/react-query";
 
 interface ENSProfile {
@@ -20,35 +20,37 @@ interface ENSProfile {
 }
 
 export function useENSProfile(address?: `0x${string}`) {
+
+  const { chain } = useAccount();
   // 1. Resolve ENS Name
   const { data: ensName } = useEnsName({
     address,
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   // 2. Resolve ENS Avatar
   const { data: ensAvatar } = useEnsAvatar({
     name: ensName || undefined,
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   // 3. Resolve ENS Text Records
   const { data: winRateRecord } = useEnsText({
     name: ensName || undefined,
     key: "edge60.winRate",
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   const { data: duelsPlayedRecord } = useEnsText({
     name: ensName || undefined,
     key: "edge60.duelsPlayed",
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   const { data: totalVolumeRecord } = useEnsText({
     name: ensName || undefined,
     key: "edge60.totalVolume",
-    chainId: mainnet.id,
+    chainId: 11155111,
   });
 
   // 4. Resolve DB Stats from backend

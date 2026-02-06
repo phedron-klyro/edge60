@@ -5,6 +5,7 @@ import {
   baseSepolia,
   polygon,
   polygonMumbai,
+  sepolia,
 } from "wagmi/chains";
 import { http } from "wagmi";
 
@@ -33,7 +34,7 @@ const arcTestnetChain = {
 export const config = getDefaultConfig({
   appName: "Edge60",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
-  chains: [mainnet, base, baseSepolia, polygon, polygonMumbai, arcTestnetChain],
+  chains: [mainnet, base, baseSepolia, polygon, polygonMumbai, sepolia, arcTestnetChain],
   transports: {
     [mainnet.id]: http(
       process.env.NEXT_PUBLIC_MAINNET_RPC_URL || "https://cloudflare-eth.com",
@@ -45,6 +46,7 @@ export const config = getDefaultConfig({
     ),
     [polygon.id]: http(),
     [polygonMumbai.id]: http(),
+    [sepolia.id]: http(),
     [arcTestnetChain.id]: http(
       process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL ||
         "https://rpc.testnet.arc.network",

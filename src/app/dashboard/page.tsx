@@ -7,11 +7,14 @@ import {
   WalletConnectButton,
   ENSNameDisplay,
   ENSProfileCard,
-  BalanceCard,
   YellowSessionCard,
+  RecentDuels,
+  MatchmakingModal,
+  VersusAnimation,
 } from "@/components";
 import { MatchProposal } from "@/components/game/MatchProposal";
-import { useAccount, useBalance } from "wagmi";
+import Image from "next/image";
+import { useAccount } from "wagmi";
 import { useGame } from "@/context/GameContext";
 
 // Connection status indicator component
@@ -32,7 +35,6 @@ export default function Dashboard() {
   const {
     isConnected: wsConnected,
     phase,
-    queuePosition,
     joinQueue,
     leaveQueue,
     matchProposal,
@@ -45,15 +47,6 @@ export default function Dashboard() {
   const [selectedGame, setSelectedGame] = useState("PREDICTION");
   const [selectedAsset, setSelectedAsset] = useState("ETH/USD");
   const [selectedStake, setSelectedStake] = useState(1);
-
-  // Fetch real USDC balance
-  const { data: balanceData } = useBalance({
-    address,
-    token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-    chainId: 84532,
-  });
-
-  const balance = balanceData ? parseFloat(balanceData.formatted) : 0;
 
   // Real contract stats
   const [stats, setStats] = useState<{
@@ -69,12 +62,26 @@ export default function Dashboard() {
       .catch((err) => console.error("Failed to fetch stats:", err));
   }, []);
 
-  // Redirect to duel page when match is ACTIVE or PLAYING (not just matched/proposed)
+  // State to manage versus animation
+  const [showVersus, setShowVersus] = useState(false);
+  const { currentMatch } = useGame();
+
+  // Redirect to duel page after versus animation
+  const handleVersusComplete = () => {
+    setShowVersus(false);
+    router.push("/duel");
+  };
+
+  // Trigger versus animation when matched
   useEffect(() => {
-    if (phase === "playing") {
-      router.push("/duel");
+    if (phase === "playing" && !showVersus) {
+      // Use requestAnimationFrame or setTimeout to avoid synchronous setState warning
+      const frame = requestAnimationFrame(() => {
+        setShowVersus(true);
+      });
+      return () => cancelAnimationFrame(frame);
     }
-  }, [phase, router]);
+  }, [phase, showVersus]);
 
   // Handle join duel click
   const handleJoinDuel = () => {
@@ -87,7 +94,27 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Match Proposal Modal */}
+      {/* Versus Screen Phase */}
+      {showVersus && currentMatch && (
+        <VersusAnimation
+          playerA={{ name: "You" }}
+          playerB={{ name: "Opponent" }}
+          gameType={currentMatch.gameType}
+          onComplete={handleVersusComplete}
+        />
+      )}
+
+      {/* Matchmaking Queue Phase */}
+      {phase === "queuing" && (
+        <MatchmakingModal
+          onCancel={leaveQueue}
+          gameType={selectedGame}
+          asset={selectedAsset}
+          stake={selectedStake}
+        />
+      )}
+
+      {/* Match Proposal Phase */}
       {matchProposal && (
         <MatchProposal
           proposal={matchProposal}
@@ -139,9 +166,9 @@ export default function Dashboard() {
           {/* Dashboard Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
             {/* Balance Card */}
-            <div className="h-full flex min-w-0">
+            {/* <div className="h-full flex min-w-0">
               <BalanceCard balance={balance} label="Wallet Balance" />
-            </div>
+            </div> */}
 
             {/* Yellow Session Card */}
             <div className="h-full flex min-w-0">
@@ -159,19 +186,19 @@ export default function Dashboard() {
                     <div>
                       <p className="text-sm text-zinc-500">Total Volume</p>
                       <p className="text-title text-amber-400">
-                        ${stats.totalVolume} USDC
+                        ${stats.totalVolume}+ USDC
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-zinc-500">Matches Settled</p>
                       <p className="text-title text-indigo-400">
-                        {stats.totalMatches}
+                        {stats.totalMatches}+
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-zinc-500">Protocol Revenue</p>
                       <p className="text-title text-green-500">
-                        ${stats.protocolRevenue} USDC
+                        ${stats.protocolRevenue}+ USDC
                       </p>
                     </div>
                   </div>
@@ -189,25 +216,7 @@ export default function Dashboard() {
             </div>
 
             {/* Recent Activity */}
-            <div className="brutal-card h-full min-w-0">
-              <p className="text-sm uppercase tracking-widest text-zinc-400 mb-2">
-                Recent Duels
-              </p>
-              <div className="space-y-3 mt-4">
-                <div className="flex justify-between items-center py-2 border-b border-zinc-700">
-                  <span className="text-green-500">+$2.00</span>
-                  <span className="text-sm text-zinc-400">2 min ago</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-zinc-700">
-                  <span className="text-rose-500">-$1.00</span>
-                  <span className="text-sm text-zinc-400">15 min ago</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-green-500">+$2.00</span>
-                  <span className="text-sm text-zinc-400">1 hr ago</span>
-                </div>
-              </div>
-            </div>
+            <RecentDuels address={address} />
           </div>
 
           {/* Join Duel Section */}
@@ -216,46 +225,107 @@ export default function Dashboard() {
               {phase === "queuing" ? "⏳ In Queue..." : "Start New Match"}
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  GAME MODE
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-4">
+              {/* Game Mode Selection Grid */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
+                  SELECT GAME MODE
                 </label>
-                <select
-                  value={selectedGame}
-                  onChange={(e) => setSelectedGame(e.target.value)}
-                  className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
-                >
-                  <option value="PREDICTION">🔮 Price Prediction</option>
-                  <option value="TRADE_DUEL">⚡ Trade Duel (Skill)</option>
-                </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    {
+                      id: "PREDICTION",
+                      title: "Price Prediction",
+                      description: "Predict the market direction to win.",
+                      image: "/thumbnails/prediction_thumbnail.png",
+                      icon: "🔮",
+                    },
+                    {
+                      id: "TRADE_DUEL",
+                      title: "Trade Duel",
+                      description: "Battle other traders in real-time.",
+                      image: "/thumbnails/trade_duel_thumbnail_wide.png",
+                      icon: "⚔️",
+                    },
+                  ].map((game) => (
+                    <div
+                      key={game.id}
+                      onClick={() => setSelectedGame(game.id)}
+                      className={`group cursor-pointer brutal-card p-0 overflow-hidden h-full transition-all duration-300 ${
+                        selectedGame === game.id
+                          ? "border-indigo-500 ring-4 ring-indigo-500/20 translate-y-[-4px]"
+                          : "border-white/10 opacity-70 hover:opacity-100 hover:border-white/30"
+                      }`}
+                    >
+                      <div className="relative h-68 w-full overflow-hidden bg-black/40">
+                        <Image
+                          src={game.image}
+                          alt={game.title}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
+                        <div className="absolute bottom-4 left-4">
+                          <span className="text-3xl mb-2 block">
+                            {game.icon}
+                          </span>
+                          <h4 className="text-xl font-black text-white">
+                            {game.title}
+                          </h4>
+                        </div>
+                        {selectedGame === game.id && (
+                          <div className="absolute top-4 right-4 bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded border border-white">
+                            SELECTED
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 bg-zinc-900/50">
+                        <p className="text-sm text-zinc-400">
+                          {game.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Asset Selection */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  ASSET
+                <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
+                  SELECT ASSET
                 </label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {["ETH/USD", "BTC/USD", "SOL/USD"].map((asset) => (
                     <button
                       key={asset}
                       onClick={() => setSelectedAsset(asset)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-bold border ${selectedAsset === asset ? "bg-white text-black border-white" : "bg-transparent text-gray-400 border-white/10 hover:border-white/30"}`}
+                      className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
+                        selectedAsset === asset
+                          ? "bg-white text-black border-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]"
+                          : "bg-black/40 text-gray-400 border-white/10 hover:border-white/30"
+                      }`}
                     >
                       {asset.split("/")[0]}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Stake Selection */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  STAKE
+                <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
+                  SELECT STAKE
                 </label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {[1, 10, 25, 50].map((amount) => (
                     <button
                       key={amount}
                       onClick={() => setSelectedStake(amount)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-bold border ${selectedStake === amount ? "bg-green-500 text-black border-green-500" : "bg-transparent text-gray-400 border-white/10 hover:border-white/30"}`}
+                      className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
+                        selectedStake === amount
+                          ? "bg-green-500 text-black border-green-500 shadow-[4px_4px_0px_0px_rgba(34,197,94,0.3)]"
+                          : "bg-black/40 text-gray-400 border-white/10 hover:border-white/30"
+                      }`}
                     >
                       ${amount}
                     </button>

@@ -7,3 +7,6 @@ export { CountdownTimer } from "./CountdownTimer";
 export { PredictionButtons } from "./PredictionButtons";
 export { MatchStatusBanner } from "./MatchStatusBanner";
 export { YellowSessionCard } from "./YellowSessionCard";
+export { RecentDuels } from "./game/RecentDuels";
+export { MatchmakingModal } from "./game/MatchmakingModal";
+export { VersusAnimation } from "./game/VersusAnimation";

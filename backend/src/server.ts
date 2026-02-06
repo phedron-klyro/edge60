@@ -113,6 +113,17 @@ async function setupServer() {
     },
   );
 
+  /**
+   * Get player match history
+   */
+  fastify.get<{ Params: { address: string } }>(
+    "/api/player/:address/history",
+    async (request, reply) => {
+      const history = await dbService.getPlayerHistory(request.params.address);
+      return history;
+    },
+  );
+
   // ============================================
   // WEBSOCKET ROUTE
   // ============================================

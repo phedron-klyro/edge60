@@ -89,6 +89,27 @@ export class DatabaseService {
       return null;
     }
   }
+
+  /**
+   * Get recent match history for a player
+   */
+  async getPlayerHistory(address: string, limit: number = 10) {
+    try {
+      const matches = await MatchModel.find({
+        $or: [{ playerA: address }, { playerB: address }],
+        status: "SETTLED",
+      })
+        .sort({ updatedAt: -1 })
+        .limit(limit);
+      return matches;
+    } catch (error) {
+      console.error(
+        `[Database] Failed to fetch history for player ${address}:`,
+        error,
+      );
+      return [];
+    }
+  }
 }
 
 export const dbService = new DatabaseService();

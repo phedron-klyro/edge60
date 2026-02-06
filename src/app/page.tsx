@@ -83,7 +83,7 @@ export default function Home() {
         </p>
         <div className="flex gap-6">
           <span className="text-sm text-[var(--color-text-muted)]">
-            Base Sepolia
+            Arc Testnet
           </span>
           <span className="text-sm text-[var(--color-primary)]">● LIVE</span>
         </div>

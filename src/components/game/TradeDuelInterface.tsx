@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { PriceChart } from "./PriceChart";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-US", {
@@ -18,7 +19,6 @@ interface TradeDuelInterfaceProps {
 }
 
 export function TradeDuelInterface({
-  matchId,
   asset,
   matchData,
   onAction,
@@ -34,20 +34,32 @@ export function TradeDuelInterface({
   }, [matchData, isMePlayerA]);
 
   // Current Price (from last trade or start price)
-  // Ideally this comes from a hook with live websocket price,
-  // but for now we use state updates or passed props if available.
-  // In a real app, we'd have a `usePrice(asset)` hook.
-  // Simulating live price update from matchData if available, usually matchData
-  // only updates on action.
-
   const [localPrice, setLocalPrice] = useState(matchData?.startPrice || 0);
+  const [history, setHistory] = useState(() =>
+    matchData?.startPrice
+      ? [{ time: Math.floor(Date.now() / 1000), value: matchData.startPrice }]
+      : [],
+  );
 
   useEffect(() => {
     // Simulate price ticker for better UI feel (random walk around start price)
-    // In production, this would be a real price feed subscription.
     const interval = setInterval(() => {
-      setLocalPrice((p: number) => p * (1 + (Math.random() - 0.5) * 0.001));
-    }, 1000);
+      setLocalPrice((p: number) => {
+        const nextPrice = p * (1 + (Math.random() - 0.5) * 0.001);
+        const now = Math.floor(Date.now() / 1000);
+
+        setHistory((prev) => {
+          const last = prev[prev.length - 1];
+          // Ensure time is increasing for lightweight-charts
+          if (last && last.time >= now) {
+            return prev;
+          }
+          return [...prev, { time: now, value: nextPrice }].slice(-100);
+        });
+
+        return nextPrice;
+      });
+    }, 2000); // 2 seconds for a cleaner chart update
     return () => clearInterval(interval);
   }, []);
 
@@ -65,16 +77,11 @@ export function TradeDuelInterface({
     let equity = state.virtualBalance;
     if (state.position) {
       const { entryPrice, size, side } = state.position;
-      const currentVal =
-        side === "LONG"
-          ? size * localPrice
-          : size * (2 * entryPrice - localPrice); // Simplified short logic
       if (side === "LONG") {
         equity = size * localPrice;
       } else {
         // Short PnL = (Entry - Current) * Size
         // Equity = Collateral + PnL
-        // We assumed full balance used as collateral
         const pnl = (entryPrice - localPrice) * size;
         const collateral = size * entryPrice;
         equity = collateral + pnl;
@@ -111,49 +118,61 @@ export function TradeDuelInterface({
       </div>
 
       {/* Main Trading Area */}
-      <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center bg-black/20 rounded-xl relative overflow-hidden">
-        {/* Chart Placeholder */}
-        <div className="absolute inset-0 opacity-10 flex items-center justify-center">
-          <span className="text-9xl font-bold text-white">CHART</span>
+      <div className="flex-1 min-h-[400px] flex flex-col bg-black/40 rounded-xl border-4 border-white overflow-hidden relative">
+        {/* Chart Background */}
+        <div className="absolute inset-0 z-0">
+          <PriceChart
+            data={history}
+            colors={{
+              lineColor: "#facc15", // Amber for theme consistency
+              areaTopColor: "rgba(250, 204, 21, 0.4)",
+              areaBottomColor: "rgba(0, 0, 0, 0)",
+            }}
+          />
         </div>
 
-        <div className="z-10 text-center mb-8">
-          <div className="text-sm text-gray-400 mb-2">{asset}</div>
-          <div className="text-5xl font-mono font-bold text-white tracking-tighter">
+        {/* Floating Price Overlay */}
+        <div className="relative z-10 p-6 flex flex-col items-center">
+          <div className="text-sm uppercase tracking-widest text-zinc-400 mb-1">
+            {asset}
+          </div>
+          <div className="text-5xl font-mono font-bold text-white tracking-tighter drop-shadow-[0_0_10px_rgba(0,0,0,1)]">
             {formatCurrency(localPrice)}
           </div>
+
+          {/* Position Info */}
+          {myState?.position && (
+            <div className="mt-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg border-2 border-white/20">
+              <span
+                className={
+                  myState.position.side === "LONG"
+                    ? "text-green-400 font-bold"
+                    : "text-red-400 font-bold"
+                }
+              >
+                {myState.position.side}
+              </span>
+              <span className="text-gray-400 mx-2">@</span>
+              <span className="font-mono text-white">
+                ${myState.position.entryPrice.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Position Info */}
-        {myState?.position && (
-          <div className="z-10 bg-white/5 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 mb-8">
-            <span
-              className={
-                myState.position.side === "LONG"
-                  ? "text-green-400 font-bold"
-                  : "text-red-400 font-bold"
-              }
-            >
-              {myState.position.side}
-            </span>
-            <span className="text-gray-400 mx-2">@</span>
-            <span className="font-mono">
-              ${myState.position.entryPrice.toFixed(2)}
-            </span>
-          </div>
-        )}
+        <div className="flex-1" />
 
         {/* Controls */}
-        <div className="z-10 flex gap-4 w-full px-8">
+        <div className="relative z-10 flex gap-4 w-full px-6 pb-6">
           <button
             onClick={handleBuy}
-            className="flex-1 bg-green-500 hover:bg-green-400 text-black font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_30px_rgba(34,197,94,0.3)]"
+            className="flex-1 bg-green-500 hover:bg-green-400 text-black font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.3)] border-b-4 border-green-700"
           >
             BUY / LONG
           </button>
           <button
             onClick={handleSell}
-            className="flex-1 bg-red-500 hover:bg-red-400 text-black font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_30px_rgba(239,68,68,0.3)]"
+            className="flex-1 bg-red-500 hover:bg-red-400 text-black font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(239,68,68,0.3)] border-b-4 border-red-700"
           >
             SELL / SHORT
           </button>

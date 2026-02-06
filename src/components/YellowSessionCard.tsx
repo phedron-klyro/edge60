@@ -12,7 +12,7 @@ interface YellowSessionCardProps {
 }
 
 export function YellowSessionCard({ yellow }: YellowSessionCardProps) {
-  const [depositAmount, setDepositAmount] = useState("1.0");
+  const [depositAmount, setDepositAmount] = useState("1");
 
   const handleDeposit = async () => {
     try {

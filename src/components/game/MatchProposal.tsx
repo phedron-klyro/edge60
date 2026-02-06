@@ -19,7 +19,7 @@ export function MatchProposal({
   onAccept,
   onDecline,
 }: MatchProposalProps) {
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState(30);
 
   useEffect(() => {
     const updateTime = () => {
@@ -38,54 +38,99 @@ export function MatchProposal({
     return () => clearInterval(interval);
   }, [proposal.expiresAt, onDecline]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-[#1A1A1A] w-full max-w-md rounded-2xl border border-yellow-500/30 p-8 text-center shadow-[0_0_50px_rgba(234,179,8,0.1)] relative overflow-hidden">
-        {/* Animated Background Gradient */}
-        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent animate-pulse" />
+  const [hasAccepted, setHasAccepted] = useState(false);
 
-        <div className="mb-6">
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">
-            MATCH FOUND!
-          </h2>
-          <p className="text-gray-400 mt-2">An opponent is ready to duel.</p>
+  const handleAccept = () => {
+    setHasAccepted(true);
+    onAccept();
+  };
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
+      <div className="bg-zinc-900 w-full max-w-lg border-4 border-yellow-500 p-10 shadow-[20px_20px_0px_0px_rgba(234,179,8,0.2)] relative overflow-hidden">
+        {/* Retro Header Accent */}
+        <div className="absolute top-0 left-0 w-full h-2 bg-yellow-500" />
+        <div className="absolute top-4 right-4 text-yellow-500/20 text-6xl font-black italic select-none">
+          FOUND
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-8 text-sm">
-          <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-            <div className="text-gray-500 text-xs mb-1">STAKE</div>
-            <div className="text-xl font-bold text-white">
+        <div className="relative z-10 text-center mb-8">
+          <div className="inline-block bg-yellow-500 text-black px-6 py-2 mb-4 font-black italic skew-x-[-15deg] shadow-[4px_4px_0px_#fff]">
+            MATCH FOUND
+          </div>
+          <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mt-2">
+            Opponent{" "}
+            <span className="text-yellow-500 underline decoration-4">
+              Ready
+            </span>
+          </h2>
+          <p className="text-zinc-500 font-bold mt-2 uppercase tracking-widest text-xs">
+            Duel request incoming...
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-10">
+          <div className="bg-black/40 border-2 border-white/5 p-4 relative group">
+            <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+              Stake
+            </div>
+            <div className="text-3xl font-black text-green-500">
               ${proposal.stake}
             </div>
           </div>
-          <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-            <div className="text-gray-500 text-xs mb-1">ASSET</div>
-            <div className="text-xl font-bold text-white">{proposal.asset}</div>
+          <div className="bg-black/40 border-2 border-white/5 p-4 relative group">
+            <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+              Asset
+            </div>
+            <div className="text-2xl font-black text-white italic">
+              {proposal.asset}
+            </div>
           </div>
-          <div className="bg-black/30 p-3 rounded-lg border border-white/5 col-span-2">
-            <div className="text-gray-500 text-xs mb-1">GAME TYPE</div>
-            <div className="text-lg font-bold text-yellow-500">
+          <div className="bg-black/40 border-2 border-white/5 p-4 relative col-span-2">
+            <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+              Game Type
+            </div>
+            <div className="text-xl font-black text-yellow-500">
               {proposal.gameType === "TRADE_DUEL"
                 ? "⚡ SKILL TRADE DUEL"
-                : "🔮 PREDICTION"}
+                : "🔮 PRICE PREDICTION"}
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={onAccept}
-            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(234,179,8,0.4)]"
-          >
-            ACCEPT MATCH ({timeLeft}s)
-          </button>
+        <div className="flex flex-col gap-4 relative z-10">
+          {hasAccepted ? (
+            <div className="w-full bg-green-600/20 border-2 border-green-500 text-green-500 font-black py-5 text-center flex items-center justify-center gap-3 animate-pulse">
+              <span className="text-2xl">✓</span>
+              <span>STATE: READY</span>
+            </div>
+          ) : (
+            <button
+              onClick={handleAccept}
+              className="w-full brutal-btn bg-yellow-500 text-black text-xl font-black py-5 hover:bg-yellow-400 active:translate-x-1 active:translate-y-1 active:shadow-none shadow-[8px_8px_0px_0px_rgba(255,255,255,0.1)]"
+            >
+              ACCEPT DUEL ({timeLeft}s)
+            </button>
+          )}
+
           <button
             onClick={onDecline}
-            className="w-full bg-white/5 hover:bg-white/10 text-gray-400 font-bold py-3 rounded-xl transition-all"
+            disabled={hasAccepted}
+            className="w-full text-zinc-500 font-black uppercase tracking-widest text-sm hover:text-rose-500 transition-colors py-2 disabled:opacity-0"
           >
             DECLINE
           </button>
         </div>
+
+        {/* Static Background Grid Decoration */}
+        <div
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+          }}
+        />
       </div>
     </div>
   );
