@@ -167,7 +167,7 @@ async function handleJoinQueue(
   }
 
   // Validate stake amount (1 USDC is the fixed stake for Edge60)
-  const validStakes = [1, 10, 25, 50, 100];
+  const validStakes = [1, 5, 10, 25, 50, 100];
   if (!validStakes.includes(stake)) {
     PlayerStore.send(playerId, {
       type: "ERROR",

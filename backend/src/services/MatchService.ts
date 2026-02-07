@@ -20,6 +20,7 @@ import { Address } from "viem";
 import { IGameEngine } from "../games/IGameEngine.js";
 import { AssetPredictionEngine } from "../games/AssetPredictionEngine.js";
 import { TradeDuelEngine } from "../games/TradeDuelEngine.js";
+import { MemoryGameEngine } from "../games/MemoryGameEngine.js";
 
 // ============================================
 // CONFIGURATION
@@ -42,6 +43,7 @@ export class MatchService {
   private engines: Record<GameType, IGameEngine> = {
     PREDICTION: new AssetPredictionEngine(),
     TRADE_DUEL: new TradeDuelEngine(),
+    MEMORY_GAME: new MemoryGameEngine(),
   };
 
   /**

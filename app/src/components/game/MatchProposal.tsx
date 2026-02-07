@@ -78,22 +78,35 @@ export function MatchProposal({
               ${proposal.stake}
             </div>
           </div>
-          <div className="bg-black/40 border-2 border-white/5 p-4 relative group">
-            <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
-              Asset
+          {proposal.gameType !== "MEMORY_GAME" ? (
+            <div className="bg-black/40 border-2 border-white/5 p-4 relative group">
+              <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+                Asset
+              </div>
+              <div className="text-2xl font-black text-white italic">
+                {proposal.asset}
+              </div>
             </div>
-            <div className="text-2xl font-black text-white italic">
-              {proposal.asset}
+          ) : (
+            <div className="bg-black/40 border-2 border-white/5 p-4 relative group">
+              <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+                Grid
+              </div>
+              <div className="text-2xl font-black text-white italic">
+                5x6 (15 pairs)
+              </div>
             </div>
-          </div>
+          )}
           <div className="bg-black/40 border-2 border-white/5 p-4 relative col-span-2">
             <div className="absolute -top-3 left-4 bg-zinc-900 px-2 text-[10px] font-black tracking-widest text-zinc-500 uppercase">
               Game Type
             </div>
             <div className="text-xl font-black text-yellow-500">
-              {proposal.gameType === "TRADE_DUEL"
-                ? "⚡ SKILL TRADE DUEL"
-                : "🔮 PRICE PREDICTION"}
+              {proposal.gameType === "MEMORY_GAME"
+                ? "🧠 MEMORY MATCH"
+                : proposal.gameType === "TRADE_DUEL"
+                  ? "⚡ SKILL TRADE DUEL"
+                  : "🔮 PRICE PREDICTION"}
             </div>
           </div>
         </div>

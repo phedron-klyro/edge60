@@ -83,13 +83,31 @@ export default function Dashboard() {
     }
   }, [phase, showVersus]);
 
+  // Reset stake when switching game modes
+  useEffect(() => {
+    if (selectedGame === "MEMORY_GAME") {
+      setSelectedAsset("NONE");
+      if (![1, 5, 10].includes(selectedStake)) {
+        setSelectedStake(1);
+      }
+    } else {
+      if (selectedAsset === "NONE") {
+        setSelectedAsset("ETH/USD");
+      }
+      if (![1, 10, 25, 50].includes(selectedStake)) {
+        setSelectedStake(1);
+      }
+    }
+  }, [selectedGame]);
+
   // Handle join duel click
   const handleJoinDuel = () => {
     if (!wsConnected) {
       alert("Connecting to game server...");
       return;
     }
-    joinQueue(selectedStake, selectedGame, selectedAsset);
+    const asset = selectedGame === "MEMORY_GAME" ? "NONE" : selectedAsset;
+    joinQueue(selectedStake, selectedGame, asset);
   };
 
   return (
@@ -231,7 +249,7 @@ export default function Dashboard() {
                 <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
                   SELECT GAME MODE
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
                     {
                       id: "PREDICTION",
@@ -246,6 +264,13 @@ export default function Dashboard() {
                       description: "Battle other traders in real-time.",
                       image: "/thumbnails/trade_duel_thumbnail_wide.png",
                       icon: "⚔️",
+                    },
+                    {
+                      id: "MEMORY_GAME",
+                      title: "Memory Match",
+                      description: "Match emoji pairs faster than your opponent. 5x6 grid, 15 pairs, 60 seconds.",
+                      image: "/thumbnails/prediction_thumbnail.png",
+                      icon: "🧠",
                     },
                   ].map((game) => (
                     <div
@@ -289,35 +314,37 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Asset Selection */}
-              <div>
-                <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
-                  SELECT ASSET
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["ETH/USD", "BTC/USD", "SOL/USD"].map((asset) => (
-                    <button
-                      key={asset}
-                      onClick={() => setSelectedAsset(asset)}
-                      className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
-                        selectedAsset === asset
-                          ? "bg-white text-black border-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]"
-                          : "bg-black/40 text-gray-400 border-white/10 hover:border-white/30"
-                      }`}
-                    >
-                      {asset.split("/")[0]}
-                    </button>
-                  ))}
+              {/* Asset Selection (hidden for Memory Game) */}
+              {selectedGame !== "MEMORY_GAME" && (
+                <div>
+                  <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
+                    SELECT ASSET
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {["ETH/USD", "BTC/USD", "SOL/USD"].map((asset) => (
+                      <button
+                        key={asset}
+                        onClick={() => setSelectedAsset(asset)}
+                        className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
+                          selectedAsset === asset
+                            ? "bg-white text-black border-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]"
+                            : "bg-black/40 text-gray-400 border-white/10 hover:border-white/30"
+                        }`}
+                      >
+                        {asset.split("/")[0]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Stake Selection */}
               <div>
                 <label className="block text-sm text-gray-500 uppercase tracking-widest mb-4">
                   SELECT STAKE
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 10, 25, 50].map((amount) => (
+                <div className={`grid gap-2 ${selectedGame === "MEMORY_GAME" ? "grid-cols-3" : "grid-cols-4"}`}>
+                  {(selectedGame === "MEMORY_GAME" ? [1, 5, 10] : [1, 10, 25, 50]).map((amount) => (
                     <button
                       key={amount}
                       onClick={() => setSelectedStake(amount)}

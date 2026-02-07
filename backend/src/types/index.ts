@@ -64,7 +64,7 @@ export interface SettlementInfo {
 // GAME TYPES
 // ============================================
 
-export type GameType = "PREDICTION" | "TRADE_DUEL";
+export type GameType = "PREDICTION" | "TRADE_DUEL" | "MEMORY_GAME";
 
 export type Prediction = "UP" | "DOWN";
 

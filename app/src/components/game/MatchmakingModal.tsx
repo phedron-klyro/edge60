@@ -17,6 +17,7 @@ export function MatchmakingModal({
   stake,
 }: MatchmakingModalProps) {
   const isTradeDuel = gameType === "TRADE_DUEL";
+  const isMemoryGame = gameType === "MEMORY_GAME";
   const thumbnail = isTradeDuel
     ? "/thumbnails/trade_duel_thumbnail_wide.png"
     : "/thumbnails/prediction_thumbnail.png";
@@ -65,9 +66,13 @@ export function MatchmakingModal({
               Finding <span className="text-indigo-500">Opponent</span>
             </h2>
             <div className="flex items-center justify-center gap-4 text-sm font-bold tracking-widest text-zinc-400 uppercase">
-              <span>{isTradeDuel ? "Trade Duel" : "Price Prediction"}</span>
-              <span className="w-1 h-1 bg-zinc-700 rounded-full" />
-              <span>{asset}</span>
+              <span>{isMemoryGame ? "Memory Match" : isTradeDuel ? "Trade Duel" : "Price Prediction"}</span>
+              {!isMemoryGame && (
+                <>
+                  <span className="w-1 h-1 bg-zinc-700 rounded-full" />
+                  <span>{asset}</span>
+                </>
+              )}
               <span className="w-1 h-1 bg-zinc-700 rounded-full" />
               <span className="text-green-500">${stake} STAKE</span>
             </div>

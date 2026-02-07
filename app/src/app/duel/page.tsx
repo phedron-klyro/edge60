@@ -11,6 +11,7 @@ import {
   MatchStatusBanner,
 } from "@/components";
 import { TradeDuelInterface } from "@/components/game/TradeDuelInterface";
+import { MemoryGameInterface } from "@/components/game/MemoryGameInterface";
 import { PriceChart } from "@/components/game/PriceChart";
 import { useGame } from "@/context/GameContext";
 import { useState } from "react";
@@ -101,6 +102,7 @@ export default function Duel() {
 
   const isPlayerA = currentMatch.playerA === playerId;
   const isTradeDuel = currentMatch.gameType === "TRADE_DUEL";
+  const isMemoryGame = currentMatch.gameType === "MEMORY_GAME";
 
   // Legacy Prediction Logic variables
   const myActualPrediction = isPlayerA
@@ -144,7 +146,7 @@ export default function Duel() {
           {/* Game Header Info */}
           <div className="flex justify-between items-center mb-6">
             <div className="text-xl font-bold font-mono text-gray-400">
-              {isTradeDuel ? "⚡ TRADE DUEL" : "🔮 PREDICTION DUEL"}
+              {isMemoryGame ? "🧠 MEMORY MATCH" : isTradeDuel ? "⚡ TRADE DUEL" : "🔮 PREDICTION DUEL"}
             </div>
             <CountdownTimer
               duration={currentMatch.duration}
@@ -154,7 +156,14 @@ export default function Duel() {
           </div>
 
           {/* Render Interface based on Game Type */}
-          {isTradeDuel ? (
+          {isMemoryGame ? (
+            <MemoryGameInterface
+              matchId={currentMatch.id}
+              matchData={currentMatch.matchData}
+              onAction={sendGameAction}
+              isMePlayerA={isPlayerA}
+            />
+          ) : isTradeDuel ? (
             <TradeDuelInterface
               matchId={currentMatch.id}
               asset={currentMatch.asset}

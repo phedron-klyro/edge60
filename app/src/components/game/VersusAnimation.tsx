@@ -42,9 +42,12 @@ export function VersusAnimation({
   }, []);
 
   const isTradeDuel = gameType === "TRADE_DUEL";
-  const bgImage = isTradeDuel
-    ? "/thumbnails/trade_duel_thumbnail_wide.png"
-    : "/thumbnails/prediction_thumbnail.png";
+  const isMemoryGame = gameType === "MEMORY_GAME";
+  const bgImage = isMemoryGame
+    ? "/thumbnails/prediction_thumbnail.png"
+    : isTradeDuel
+      ? "/thumbnails/trade_duel_thumbnail_wide.png"
+      : "/thumbnails/prediction_thumbnail.png";
 
   return (
     <div className="fixed inset-0 z-100 bg-black flex items-center justify-center overflow-hidden">

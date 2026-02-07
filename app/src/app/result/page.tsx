@@ -116,6 +116,73 @@ function PredictionResults({
   );
 }
 
+// Memory Game Results Component
+function MemoryGameResults({
+  matchData,
+  isPlayerA,
+  isDraw,
+}: {
+  matchData: any;
+  isPlayerA: boolean;
+  isDraw: boolean;
+}) {
+  const results = matchData?.results;
+  const myScore = isPlayerA ? results?.playerAScore : results?.playerBScore;
+  const oppScore = isPlayerA ? results?.playerBScore : results?.playerAScore;
+  const myFlips = isPlayerA
+    ? results?.playerATotalFlips
+    : results?.playerBTotalFlips;
+  const oppFlips = isPlayerA
+    ? results?.playerBTotalFlips
+    : results?.playerATotalFlips;
+
+  return (
+    <>
+      <div className="mt-8 grid grid-cols-2 gap-6 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+            Your Score
+          </p>
+          <p className="text-headline text-indigo-400">{myScore ?? 0}</p>
+          <p className="text-sm text-zinc-400 mt-1">
+            pairs matched
+          </p>
+          {myFlips !== undefined && (
+            <p className="text-xs text-zinc-500 mt-1">
+              {myFlips} total flips
+            </p>
+          )}
+        </div>
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+            Opponent Score
+          </p>
+          <p className="text-headline text-rose-400">{oppScore ?? 0}</p>
+          <p className="text-sm text-zinc-400 mt-1">
+            pairs matched
+          </p>
+          {oppFlips !== undefined && (
+            <p className="text-xs text-zinc-500 mt-1">
+              {oppFlips} total flips
+            </p>
+          )}
+        </div>
+      </div>
+
+      {isDraw && (
+        <div className="mt-4 p-4 rounded-lg text-center bg-amber-500/10 border border-amber-500/30">
+          <p className="text-sm font-medium text-amber-400">
+            Both players matched the same number of pairs!
+          </p>
+          <p className="text-xs text-zinc-500 mt-1">
+            Stakes have been returned to both players
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Trade Duel Results Component
 function TradeDuelResults({ matchData, isPlayerA }: { matchData: any; isPlayerA: boolean }) {
   const results = matchData?.results;
@@ -301,32 +368,40 @@ export default function Result() {
             {currentMatch && (
               <div className="mt-8 pt-8 border-t-2 border-zinc-700">
                 <div className="grid grid-cols-2 gap-6 text-left">
-                  <div>
-                    <p className="text-sm text-zinc-400">Asset</p>
-                    <p className="text-title text-indigo-400">
-                      {currentMatch.asset}
-                    </p>
-                  </div>
+                  {currentMatch.gameType !== "MEMORY_GAME" && (
+                    <div>
+                      <p className="text-sm text-zinc-400">Asset</p>
+                      <p className="text-title text-indigo-400">
+                        {currentMatch.asset}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-sm text-zinc-400">Game Mode</p>
                     <p className="text-title text-amber-400">
-                      {currentMatch.gameType === "TRADE_DUEL" 
-                        ? "⚡ Trade Duel" 
-                        : "🔮 Prediction"}
+                      {currentMatch.gameType === "MEMORY_GAME"
+                        ? "🧠 Memory Match"
+                        : currentMatch.gameType === "TRADE_DUEL" 
+                          ? "⚡ Trade Duel" 
+                          : "🔮 Prediction"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-zinc-400">Start Price</p>
-                    <p className="text-title text-mono">
-                      ${currentMatch.startPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-zinc-400">End Price</p>
-                    <p className="text-title text-mono">
-                      ${currentMatch.endPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
+                  {currentMatch.gameType !== "MEMORY_GAME" && (
+                    <>
+                      <div>
+                        <p className="text-sm text-zinc-400">Start Price</p>
+                        <p className="text-title text-mono">
+                          ${currentMatch.startPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-zinc-400">End Price</p>
+                        <p className="text-title text-mono">
+                          ${currentMatch.endPrice?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </>
+                  )}
                   {/* Show price movement for Prediction mode only */}
                   {currentMatch.gameType !== "TRADE_DUEL" && currentMatch.startPrice && currentMatch.endPrice && (
                     <>
@@ -349,7 +424,14 @@ export default function Result() {
                 </div>
 
                 {/* Game-specific Results */}
-                {currentMatch.gameType === "TRADE_DUEL" ? (
+                {currentMatch.gameType === "MEMORY_GAME" ? (
+                  /* Memory Game: Show Score Comparison */
+                  <MemoryGameResults
+                    matchData={currentMatch.matchData}
+                    isPlayerA={currentMatch.playerA === playerId}
+                    isDraw={isDraw}
+                  />
+                ) : currentMatch.gameType === "TRADE_DUEL" ? (
                   /* Trade Duel: Show Profit Comparison */
                   <TradeDuelResults 
                     matchData={currentMatch.matchData} 
